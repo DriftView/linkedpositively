@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
 import { admin, username } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
+import { after } from "next/server";
 import { env } from "@/env";
 import { db } from "@/server/db/client";
 import { accounts, rateLimits, sessions, users, verifications } from "@/server/db/schema";
@@ -131,16 +132,23 @@ export const auth = betterAuth({
   ],
 
   hooks: {
+    // Bookkeeping runs after the response is sent (next/server `after`), so
+    // its database round trips don't hold up signing in or out.
     after: createAuthMiddleware(async (ctx) => {
       if (ctx.path.startsWith("/sign-in/")) {
         const session = ctx.context.newSession;
         if (!session) return;
-        await upgradeLegacyPassword(session.user.id, (ctx.body as { password?: string } | undefined)?.password);
-        await onSignIn(session.user.id, ctx.headers?.get("user-agent") ?? "");
+        const userId = session.user.id;
+        const password = (ctx.body as { password?: string } | undefined)?.password;
+        const userAgent = ctx.headers?.get("user-agent") ?? "";
+        after(async () => {
+          await upgradeLegacyPassword(userId, password);
+          await onSignIn(userId, userAgent);
+        });
       }
       if (ctx.path === "/sign-out") {
         const userId = ctx.context.session?.user.id;
-        if (userId) await onSignOut(userId);
+        if (userId) after(() => onSignOut(userId));
       }
     }),
   },
