@@ -1,0 +1,48 @@
+/**
+ * Navigation items are built on the server (filtered by the viewer's
+ * permissions) and passed to client shells as plain data, so icons are
+ * referenced by name rather than as components.
+ */
+export type NavIcon =
+  | "home"
+  | "tips"
+  | "tracker"
+  | "checkin"
+  | "profile"
+  | "resources"
+  | "journey"
+  | "trophy"
+  | "bell"
+  | "messages"
+  | "coaching"
+  | "files"
+  | "coach"
+  | "video"
+  | "search"
+  | "book"
+  | "help"
+  | "users"
+  | "shield"
+  | "flag"
+  | "chart"
+  | "settings"
+  | "content"
+  | "sms"
+  | "survey"
+  | "shuffle"
+  | "dashboard"
+  | "support"
+  | "external"
+  | "link";
+
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: NavIcon;
+  /** Shown in the phone tab bar (max 4 + "More"). */
+  primary?: boolean;
+  external?: boolean;
+  badge?: number;
+};
+
+export type NavGroup = { label: string; items: NavItem[] };

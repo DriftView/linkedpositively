@@ -1,0 +1,43 @@
+import { cn } from "@/lib/utils";
+
+/**
+ * The Link Positively mark (a figure inside a ring), redrawn from the
+ * original logo so it can take theme colours. `ring` colours the outer
+ * circle, `figure` the person.
+ */
+export function LogoMark({
+  className,
+  ring = "var(--brand-magenta)",
+  figure = "currentColor",
+  title = "Link Positively",
+}: {
+  className?: string;
+  ring?: string;
+  figure?: string;
+  title?: string;
+}) {
+  return (
+    <svg viewBox="0 0 272 272" role="img" aria-label={title} className={cn("size-8 shrink-0", className)}>
+      <g fill={figure}>
+        <path d="M114.5 130.6v116c7 1.4 14.1 2.1 21.5 2.1s14.5-.7 21.5-2.1v-116c-6.3 3.3-13.6 5.2-21.5 5.2s-15.2-1.9-21.5-5.2" />
+        <circle cx="136" cy="85.9" r="35.8" />
+        <path d="M247.3 118.1H24.7a141 141 0 0 0-.9 28.6h224.4a141 141 0 0 0-.9-28.6" />
+        <path d="M136 68l53.7 128.8H82.3z" />
+        <path d="M136 23.3c-7.3 0-14.5.7-21.5 2v23.4c6.3-3.6 13.6-5.8 21.5-5.8s15.2 2.2 21.5 5.8V25.3c-7-1.3-14.1-2-21.5-2" />
+      </g>
+      <path
+        fill={ring}
+        d="M136 14.3C68.9 14.3 14.3 68.9 14.3 136S68.9 257.7 136 257.7 257.7 203.1 257.7 136 203.1 14.3 136 14.3M136 272C61 272 0 211 0 136S61 0 136 0s136 61 136 136-61 136-136 136"
+      />
+    </svg>
+  );
+}
+
+export function Wordmark({ className, program = "Link Positively" }: { className?: string; program?: string }) {
+  return (
+    <span className={cn("flex items-center gap-2.5", className)}>
+      <LogoMark className="size-8 text-primary" />
+      <span className="font-heading text-[1.05rem] leading-none font-semibold tracking-tight">{program}</span>
+    </span>
+  );
+}

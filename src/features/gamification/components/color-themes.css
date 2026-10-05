@@ -1,0 +1,103 @@
+/*
+ * Level-6 colour themes (legacy field_theme theme-2…4, docs/legacy/06 §3.7),
+ * re-drawn on the current token system so every component follows. Applied
+ * through a `data-color-theme` attribute (see color-theme-scope.tsx), in
+ * both light and dark mode. theme-1 is the default palette (no overrides).
+ */
+
+/* Dusk: mauve and graphite (legacy theme 2: #68505F / #C9B9C6). */
+html[data-color-theme="theme-2"],
+[data-color-theme="theme-2"][data-color-theme] {
+  --primary: oklch(0.44 0.055 345);
+  --brand-plum: oklch(0.44 0.055 345);
+  --brand-magenta: oklch(0.54 0.11 350);
+  --secondary: oklch(0.95 0.012 340);
+  --secondary-foreground: oklch(0.34 0.05 345);
+  --accent: oklch(0.945 0.014 340);
+  --accent-foreground: oklch(0.32 0.05 345);
+  --background: oklch(0.984 0.003 340);
+  --ring: oklch(0.55 0.06 345);
+  --chart-1: oklch(0.44 0.055 345);
+  --sidebar-primary: oklch(0.44 0.055 345);
+}
+html.dark[data-color-theme="theme-2"],
+.dark [data-color-theme="theme-2"][data-color-theme] {
+  --primary: oklch(0.78 0.05 345);
+  --brand-plum: oklch(0.78 0.05 345);
+  --brand-magenta: oklch(0.74 0.1 350);
+  --primary-foreground: oklch(0.2 0.02 345);
+  --secondary: oklch(0.27 0.018 340);
+  --secondary-foreground: oklch(0.93 0.01 340);
+  --accent: oklch(0.28 0.02 340);
+  --background: oklch(0.16 0.01 340);
+  --card: oklch(0.2 0.012 340);
+  --ring: oklch(0.72 0.05 345);
+  --chart-1: oklch(0.78 0.05 345);
+  --sidebar-primary: oklch(0.78 0.05 345);
+}
+
+/* Lagoon: teal with sky and blush (legacy theme 3: #1D7880 / #5BCFF9 / #FAD4DC). */
+html[data-color-theme="theme-3"],
+[data-color-theme="theme-3"][data-color-theme] {
+  --primary: oklch(0.51 0.085 205);
+  --brand-plum: oklch(0.51 0.085 205);
+  --brand-magenta: oklch(0.62 0.15 5);
+  --brand-sky: oklch(0.8 0.12 225);
+  --brand-pink: oklch(0.9 0.045 5);
+  --secondary: oklch(0.955 0.02 205);
+  --secondary-foreground: oklch(0.36 0.07 205);
+  --accent: oklch(0.95 0.022 205);
+  --accent-foreground: oklch(0.34 0.07 205);
+  --background: oklch(0.985 0.005 200);
+  --ring: oklch(0.58 0.09 205);
+  --chart-1: oklch(0.51 0.085 205);
+  --sidebar-primary: oklch(0.51 0.085 205);
+}
+html.dark[data-color-theme="theme-3"],
+.dark [data-color-theme="theme-3"][data-color-theme] {
+  --primary: oklch(0.78 0.09 200);
+  --brand-plum: oklch(0.78 0.09 200);
+  --brand-magenta: oklch(0.76 0.12 5);
+  --primary-foreground: oklch(0.2 0.03 205);
+  --secondary: oklch(0.27 0.03 205);
+  --secondary-foreground: oklch(0.93 0.02 205);
+  --accent: oklch(0.28 0.035 205);
+  --background: oklch(0.16 0.018 210);
+  --card: oklch(0.2 0.022 210);
+  --ring: oklch(0.72 0.08 200);
+  --chart-1: oklch(0.78 0.09 200);
+  --sidebar-primary: oklch(0.78 0.09 200);
+}
+
+/* Harbor: navy with pink and ice blue (legacy theme 4: #2C3E50 / #F5AAB9 / #ADE7FC). */
+html[data-color-theme="theme-4"],
+[data-color-theme="theme-4"][data-color-theme] {
+  --primary: oklch(0.37 0.045 250);
+  --brand-plum: oklch(0.37 0.045 250);
+  --brand-magenta: oklch(0.63 0.13 5);
+  --brand-sky: oklch(0.88 0.07 220);
+  --brand-pink: oklch(0.8 0.09 5);
+  --secondary: oklch(0.955 0.015 240);
+  --secondary-foreground: oklch(0.33 0.045 250);
+  --accent: oklch(0.95 0.018 240);
+  --accent-foreground: oklch(0.32 0.045 250);
+  --background: oklch(0.985 0.004 240);
+  --ring: oklch(0.5 0.06 250);
+  --chart-1: oklch(0.37 0.045 250);
+  --sidebar-primary: oklch(0.37 0.045 250);
+}
+html.dark[data-color-theme="theme-4"],
+.dark [data-color-theme="theme-4"][data-color-theme] {
+  --primary: oklch(0.8 0.06 240);
+  --brand-plum: oklch(0.8 0.06 240);
+  --brand-magenta: oklch(0.8 0.09 5);
+  --primary-foreground: oklch(0.2 0.03 250);
+  --secondary: oklch(0.27 0.025 245);
+  --secondary-foreground: oklch(0.93 0.015 240);
+  --accent: oklch(0.28 0.03 245);
+  --background: oklch(0.16 0.018 250);
+  --card: oklch(0.2 0.022 250);
+  --ring: oklch(0.72 0.06 240);
+  --chart-1: oklch(0.8 0.06 240);
+  --sidebar-primary: oklch(0.8 0.06 240);
+}
