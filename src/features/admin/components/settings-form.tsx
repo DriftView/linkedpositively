@@ -40,7 +40,17 @@ function Toggle({ id, label, description, checked, onChange, disabled }: { id: s
   );
 }
 
-export function SettingsForm({ settings, midpointUrl, qualtricsConnected }: { settings: AppSettings; midpointUrl: string; qualtricsConnected: boolean }) {
+export function SettingsForm({
+  settings,
+  midpointUrl,
+  qualtricsConnected,
+  aiConfigured,
+}: {
+  settings: AppSettings;
+  midpointUrl: string;
+  qualtricsConnected: boolean;
+  aiConfigured: boolean;
+}) {
   const router = useRouter();
   const [form, setForm] = useState(settings);
   const [midpoint, setMidpoint] = useState(midpointUrl);
@@ -152,6 +162,33 @@ export function SettingsForm({ settings, midpointUrl, qualtricsConnected }: { se
           onChange={(v) => set("qualtricsSyncEnabled", v)}
           disabled={!qualtricsConnected}
         />
+      </Section>
+
+      <Section title="AI Coach" description="The Claude-powered coach for intervention and Peer Navigation participants, and who hears about safety alerts.">
+        <Toggle
+          id="s-ai"
+          label="AI Coach available"
+          description={
+            aiConfigured
+              ? "Switch off to hide the coach from everyone. Conversations are kept."
+              : "The server has no ANTHROPIC_API_KEY, so the coach only shows its fallback (approved content, resources and people to contact)."
+          }
+          checked={form.aiCoachEnabled}
+          onChange={(v) => set("aiCoachEnabled", v)}
+        />
+        <Toggle id="s-ai-voice" label="Voice" description="Talk to the coach and hear its replies. Uses ElevenLabs when configured, otherwise the browser's own voices." checked={form.aiVoiceEnabled} onChange={(v) => set("aiVoiceEnabled", v)} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field data-invalid={Boolean(errors.aiAlertEmail)}>
+            <FieldLabel htmlFor="s-ai-email">Safety alert email</FieldLabel>
+            <Input id="s-ai-email" type="email" value={form.aiAlertEmail} onChange={(e) => set("aiAlertEmail", e.target.value)} className="h-9" placeholder="Study contact email" />
+            {errors.aiAlertEmail ? <FieldError>{errors.aiAlertEmail}</FieldError> : <FieldDescription>Gets a link (no details) when a conversation needs review. Empty: the study contact email.</FieldDescription>}
+          </Field>
+          <Field data-invalid={Boolean(errors.aiOnCallPhone)}>
+            <FieldLabel htmlFor="s-ai-phone">On-call phone for crisis alerts</FieldLabel>
+            <Input id="s-ai-phone" type="tel" value={form.aiOnCallPhone} onChange={(e) => set("aiOnCallPhone", e.target.value.trim())} className="h-9" placeholder="+15551234567" />
+            {errors.aiOnCallPhone ? <FieldError>{errors.aiOnCallPhone}</FieldError> : <FieldDescription>Texted for urgent alerts only. Empty: no text.</FieldDescription>}
+          </Field>
+        </div>
       </Section>
 
       <div className={`fixed inset-x-0 bottom-0 z-30 transition-transform duration-200 md:left-(--sidebar-width) ${dirty ? "translate-y-0" : "invisible translate-y-full"}`} aria-hidden={!dirty}>

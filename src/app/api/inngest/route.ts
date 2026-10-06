@@ -1,5 +1,6 @@
 import { serve } from "inngest/next";
 import { jobs as adminJobs } from "@/features/admin/jobs";
+import { jobs as aiCoachJobs } from "@/features/ai-coach/jobs";
 import { jobs as checkinJobs } from "@/features/checkin/jobs";
 import { jobs as communityJobs } from "@/features/community/jobs";
 import { jobs as gamificationJobs } from "@/features/gamification/jobs";
@@ -18,6 +19,7 @@ export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
     ...adminJobs,
+    ...aiCoachJobs,
     ...checkinJobs,
     ...communityJobs,
     ...gamificationJobs,

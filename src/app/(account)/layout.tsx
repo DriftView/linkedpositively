@@ -28,7 +28,7 @@ export default async function AccountLayout({ children }: LayoutProps<"/">) {
   if (viewer.staff && can(viewer, "admin.access")) {
     return (
       <StaffShell
-        groups={staffNav(viewer)}
+        groups={staffNav(viewer, counts)}
         unread={counts.unreadMessages}
         bellHref={can(viewer, "peernav.messages") ? "/coach/messages" : undefined}
         user={user}

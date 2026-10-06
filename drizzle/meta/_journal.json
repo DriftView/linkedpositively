@@ -22,6 +22,13 @@
       "when": 1791229474355,
       "tag": "0002_keep_tip_views_and_goal_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791245197888,
+      "tag": "0003_ai_coach",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,111 @@
+/* AI Coach avatar motion. Subtle by design; all of it stops for prefers-reduced-motion. */
+
+@keyframes coach-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(1.5px);
+  }
+}
+
+@keyframes coach-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes coach-ring {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+}
+
+@keyframes coach-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.coach-avatar .coach-body {
+  animation: coach-breathe 4.5s ease-in-out infinite;
+  transform-box: fill-box;
+}
+
+.coach-avatar .coach-eyes {
+  animation: coach-blink 5.2s infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.coach-avatar .coach-mouth-open {
+  transform-box: fill-box;
+  transform-origin: center top;
+  transition: transform 60ms linear;
+}
+
+.coach-avatar .coach-brows {
+  transition: transform 300ms ease;
+}
+
+.coach-avatar[data-state="listening"] .coach-brows {
+  transform: translateY(-2.5px);
+}
+
+.coach-avatar[data-state="thinking"] .coach-eyes-look {
+  transform: translate(2px, -2px);
+}
+
+.coach-avatar .coach-eyes-look {
+  transition: transform 400ms ease;
+}
+
+.coach-avatar .coach-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+
+.coach-avatar[data-state="listening"] .coach-ring,
+.coach-avatar[data-state="speaking"] .coach-ring {
+  animation: coach-ring 1.6s ease-out infinite;
+}
+
+.coach-avatar .coach-dots circle {
+  animation: coach-dot 1.2s ease-in-out infinite;
+}
+
+.coach-avatar .coach-dots circle:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.coach-avatar .coach-dots circle:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-avatar .coach-body,
+  .coach-avatar .coach-eyes,
+  .coach-avatar .coach-ring,
+  .coach-avatar .coach-dots circle {
+    animation: none;
+  }
+}

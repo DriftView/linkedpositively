@@ -33,7 +33,9 @@ export type NavIcon =
   | "dashboard"
   | "support"
   | "external"
-  | "link";
+  | "link"
+  | "ai"
+  | "alert";
 
 export type NavItem = {
   href: string;

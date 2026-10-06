@@ -1,4 +1,5 @@
 import {
+  Bot,
   ChartColumn,
   Bell,
   BookOpen,
@@ -20,6 +21,7 @@ import {
   Milestone,
   Search,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Shuffle,
   Sparkles,
@@ -63,6 +65,8 @@ const ICONS = {
   support: Wrench,
   external: ExternalLink,
   link: Link2,
+  ai: Bot,
+  alert: ShieldAlert,
 } satisfies Record<NavIconName, React.ComponentType<LucideProps>>;
 
 export function NavIcon({ name, ...props }: { name: NavIconName } & LucideProps) {

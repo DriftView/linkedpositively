@@ -24,6 +24,16 @@ export const USAGE_TYPES = [
   "survey_open",
   "checkin_weekly_view",
   "peernav_view",
+  "ai_coach_view",
+  "ai_message",
+  "ai_voice_input",
+  "ai_voice_output",
+  "ai_resources_shown",
+  "ai_handoff_shown",
+  "ai_handoff_sent",
+  "ai_safety_flag",
+  "ai_feedback",
+  "ai_fallback",
 ] as const;
 export type UsageType = (typeof USAGE_TYPES)[number];
 

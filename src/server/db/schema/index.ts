@@ -18,4 +18,5 @@ export * from "./surveys";
 export * from "./support";
 export * from "./content";
 export * from "./system";
+export * from "./ai";
 export * from "./relations";

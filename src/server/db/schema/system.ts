@@ -39,6 +39,9 @@ export const AUDIT_ACTIONS = [
   "survey.sync",
   "survey.complete",
   "settings.update",
+  "ai.alert",
+  "ai.transcript",
+  "ai.knowledge",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

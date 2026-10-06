@@ -54,7 +54,10 @@ export const PERMISSIONS = [
   "peernav.editParticipant",
   "peernav.messages",
   "peernav.sessionReport",
+  // AI Coach (intervention arm and Peer Navigation participants; never control)
+  "ai.chat",
   // Staff
+  "ai.review",
   "admin.access",
   "users.view",
   "users.create",
@@ -85,9 +88,10 @@ const PARTICIPANT: Permission[] = [
   "resources.view",
   "resources.suggest",
   "gamification.earn",
+  "ai.chat",
 ];
 
-const STAFF_BASE: Permission[] = ["admin.access", "users.view", "lp.access", "tips.view", "resources.view"];
+const STAFF_BASE: Permission[] = ["admin.access", "users.view", "lp.access", "tips.view", "resources.view", "ai.chat"];
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   admin: [...PERMISSIONS],
@@ -105,6 +109,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "sms.manage",
     "surveys.manage",
     "support.manage",
+    "ai.review",
   ],
   coordinator: [
     ...STAFF_BASE,
@@ -125,6 +130,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "peernav.assignCoach",
     "peernav.editParticipant",
     "peernav.sessionReport",
+    "ai.review",
   ],
   coach: [
     "admin.access",
@@ -139,7 +145,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   // intervention features stay closed until they are converted to participant
   // (Drupal: control users saw the basic app, info pages and their profile).
   control: ["lp.access"],
-  ecoach_user: ["peernav.participant", "peernav.messages", "peernav.open"],
+  ecoach_user: ["peernav.participant", "peernav.messages", "peernav.open", "ai.chat"],
 };
 
 /** Roles a user with `users.assignRoles` may hand out (Drupal role_delegation). */

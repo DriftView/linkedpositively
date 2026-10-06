@@ -39,6 +39,13 @@ export const env = createEnv({
     // Geocoding for the resource locator (distance search). Optional: without it, search by city/ZIP text only.
     GOOGLE_MAPS_API_KEY: z.string().optional(),
 
+    // AI Coach (Claude). Without a key the coach shows its fallback (approved content, resources, people to contact).
+    ANTHROPIC_API_KEY: z.string().optional(),
+    // Voice (ElevenLabs). Without a key, voice uses the browser's built-in speech where available.
+    ELEVENLABS_API_KEY: z.string().optional(),
+    ELEVENLABS_VOICE_ID: z.string().default("JBFqnCBsd6RMkjVDRZzb"),
+    ELEVENLABS_MODEL_ID: z.string().default("eleven_multilingual_v2"),
+
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   },
   client: {
@@ -64,6 +71,10 @@ export const env = createEnv({
     QUALTRICS_DATA_CENTER: process.env.QUALTRICS_DATA_CENTER,
     TECHSTEP_SSO_SECRET: process.env.TECHSTEP_SSO_SECRET,
     GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
+    ELEVENLABS_VOICE_ID: process.env.ELEVENLABS_VOICE_ID,
+    ELEVENLABS_MODEL_ID: process.env.ELEVENLABS_MODEL_ID,
     LOG_LEVEL: process.env.LOG_LEVEL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },

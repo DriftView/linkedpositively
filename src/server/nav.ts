@@ -9,6 +9,7 @@ import { can, type Viewer } from "@/server/auth/session";
  */
 export function participantNav(viewer: Viewer, counts: { wallNew?: number; tipsNew?: number } = {}): NavItem[] {
   const items: NavItem[] = [{ href: "/", label: "Home", icon: "home", primary: true, badge: counts.wallNew }];
+  if (can(viewer, "ai.chat")) items.push({ href: "/ai-coach", label: "AI Coach", icon: "ai" });
   if (can(viewer, "tips.view")) items.push({ href: "/tips", label: "Tips", icon: "tips", primary: true, badge: counts.tipsNew });
   if (can(viewer, "tracker.use")) items.push({ href: "/tracker", label: "Tracker", icon: "tracker", primary: true });
   if (can(viewer, "checkin.weekly")) {
@@ -41,13 +42,14 @@ export function coachingNav(
     { href: "/coaching/messages", label: "Messages", icon: "messages", primary: true, badge: counts.unreadMessages },
     { href: "/coaching/files", label: "My files", icon: "files", primary: true },
   ];
+  if (can(viewer, "ai.chat")) items.push({ href: "/coaching/ai-coach", label: "AI Coach", icon: "ai" });
   if (options.hasZoom) items.push({ href: "/coaching/zoom", label: "Launch Zoom", icon: "video", external: true });
   if (can(viewer, "lp.access")) items.push({ href: "/", label: "Link Positively", icon: "home" });
   return items;
 }
 
 /** Staff sidebar, grouped. Only groups with at least one visible item are returned. */
-export function staffNav(viewer: Viewer): NavGroup[] {
+export function staffNav(viewer: Viewer, counts: { aiAlerts?: number } = {}): NavGroup[] {
   const groups: NavGroup[] = [];
   const add = (label: string, entries: (NavItem | false)[]) => {
     const items = entries.filter(Boolean) as NavItem[];
@@ -84,6 +86,12 @@ export function staffNav(viewer: Viewer): NavGroup[] {
     can(viewer, "moderation.review") && { href: "/admin/moderation", label: "Moderation", icon: "flag" },
     can(viewer, "support.manage") && { href: "/admin/support", label: "Tech support", icon: "support" },
     can(viewer, "lp.access") && { href: "/", label: "Open the app", icon: "external" },
+  ]);
+  add("AI Coach", [
+    (can(viewer, "ai.review") || can(viewer, "reports.view")) && { href: "/admin/ai", label: "Overview", icon: "ai" },
+    can(viewer, "ai.review") && { href: "/admin/ai/alerts", label: "Safety alerts", icon: "alert", badge: counts.aiAlerts },
+    can(viewer, "content.manage") && { href: "/admin/ai/knowledge", label: "Knowledge", icon: "book" },
+    can(viewer, "ai.chat") && can(viewer, "lp.access") && { href: "/ai-coach", label: "Try the coach", icon: "external" },
   ]);
   add("Insights", [
     can(viewer, "reports.view") && { href: "/admin/reports", label: "Reports", icon: "chart" },

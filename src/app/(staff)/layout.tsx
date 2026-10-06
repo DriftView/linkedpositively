@@ -9,7 +9,7 @@ export default async function StaffLayout({ children }: LayoutProps<"/">) {
   const counts = await getShellCounts(viewer);
   return (
     <StaffShell
-      groups={staffNav(viewer)}
+      groups={staffNav(viewer, counts)}
       unread={counts.unreadMessages}
       bellHref={can(viewer, "peernav.messages") ? "/coach/messages" : undefined}
       user={{

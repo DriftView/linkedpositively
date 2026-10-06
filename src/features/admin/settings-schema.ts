@@ -15,6 +15,10 @@ export const settingsSchema = z.object({
   autoBlockDays: z.number().int().min(30, "At least 30 days.").max(730, "At most 730 days."),
   surveyPromptsEnabled: z.boolean(),
   qualtricsSyncEnabled: z.boolean(),
+  aiCoachEnabled: z.boolean(),
+  aiVoiceEnabled: z.boolean(),
+  aiAlertEmail: z.union([z.literal(""), z.email("Enter a valid email address.")]),
+  aiOnCallPhone: z.union([z.literal(""), z.string().trim().regex(/^\+[1-9]\d{7,14}$/, "Use international format, e.g. +15551234567.")]),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;
@@ -31,6 +35,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoBlockDays: 150,
   surveyPromptsEnabled: true,
   qualtricsSyncEnabled: false,
+  aiCoachEnabled: true,
+  aiVoiceEnabled: true,
+  // Empty: safety alert emails go to the study contact email.
+  aiAlertEmail: "",
+  aiOnCallPhone: "",
 };
 
 export const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof AppSettings)[];
