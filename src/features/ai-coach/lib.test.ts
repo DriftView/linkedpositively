@@ -29,11 +29,28 @@ describe("clip", () => {
 
 describe("parseCoachMarkdown", () => {
   it("parses paragraphs, bold and lists", () => {
-    const blocks = parseCoachMarkdown("Here's **PrEP**:\n\n- Daily pill\n- Shot every 2 months\n\n1. Talk to a provider\n2. Get tested\nThanks");
+    const blocks = parseCoachMarkdown(
+      "Here's **PrEP**:\n\n- Daily pill\n- Shot every 2 months\n\n1. Talk to a provider\n2. Get tested\nThanks",
+    );
     expect(blocks).toEqual([
-      { type: "paragraph", spans: [{ text: "Here's ", bold: false }, { text: "PrEP", bold: true }, { text: ":", bold: false }] },
-      { type: "list", ordered: false, items: [[{ text: "Daily pill", bold: false }], [{ text: "Shot every 2 months", bold: false }]] },
-      { type: "list", ordered: true, items: [[{ text: "Talk to a provider", bold: false }], [{ text: "Get tested", bold: false }]] },
+      {
+        type: "paragraph",
+        spans: [
+          { text: "Here's ", bold: false },
+          { text: "PrEP", bold: true },
+          { text: ":", bold: false },
+        ],
+      },
+      {
+        type: "list",
+        ordered: false,
+        items: [[{ text: "Daily pill", bold: false }], [{ text: "Shot every 2 months", bold: false }]],
+      },
+      {
+        type: "list",
+        ordered: true,
+        items: [[{ text: "Talk to a provider", bold: false }], [{ text: "Get tested", bold: false }]],
+      },
       { type: "paragraph", spans: [{ text: "Thanks", bold: false }] },
     ]);
   });

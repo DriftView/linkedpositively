@@ -23,7 +23,10 @@ describe("detectKeywordRisk", () => {
   });
 
   it("prefers the urgent match when several rules match", () => {
-    expect(detectKeywordRisk("I've been cutting myself and I want to die")).toEqual({ level: "urgent", category: "suicide" });
+    expect(detectKeywordRisk("I've been cutting myself and I want to die")).toEqual({
+      level: "urgent",
+      category: "suicide",
+    });
   });
 
   it.each([

@@ -14,6 +14,7 @@ import {
   type AiAlertStatus,
   type AiSafetyAlert,
 } from "@/server/db/schema";
+import { DEFAULT_DESIGN } from "./coach-design";
 import type {
   AiPreferencesDTO,
   AiStatsDTO,
@@ -31,13 +32,32 @@ import type {
 
 export async function getPreferences(userId: string): Promise<AiPreferencesDTO> {
   const [row] = await db.select().from(aiPreferences).where(eq(aiPreferences.userId, userId)).limit(1);
-  return { personalize: row?.personalize ?? true, autoSpeak: row?.autoSpeak ?? false, look: row?.look ?? "amara" };
+  return {
+    personalize: row?.personalize ?? true,
+    autoSpeak: row?.autoSpeak ?? false,
+    design: row
+      ? {
+          look: row.look,
+          name: row.coachName,
+          pronouns: row.coachPronouns,
+          appearance: row.appearance,
+          voice: row.voice,
+          tone: row.tone,
+          replyLength: row.replyLength,
+        }
+      : DEFAULT_DESIGN,
+  };
 }
 
 /** The member's visible conversations, most recent first. */
 export async function listConversations(userId: string, limit = 30): Promise<ConversationSummaryDTO[]> {
   const rows = await db
-    .select({ id: aiConversations.id, title: aiConversations.title, lastMessageAt: aiConversations.lastMessageAt, messageCount: aiConversations.messageCount })
+    .select({
+      id: aiConversations.id,
+      title: aiConversations.title,
+      lastMessageAt: aiConversations.lastMessageAt,
+      messageCount: aiConversations.messageCount,
+    })
     .from(aiConversations)
     .where(and(eq(aiConversations.userId, userId), isNull(aiConversations.hiddenAt)))
     .orderBy(desc(aiConversations.lastMessageAt))
@@ -46,12 +66,17 @@ export async function listConversations(userId: string, limit = 30): Promise<Con
 }
 
 /** A conversation's messages, when it belongs to the member and isn't hidden. */
-export async function getConversationMessages(userId: string, conversationId: string): Promise<ChatMessageDTO[] | null> {
+export async function getConversationMessages(
+  userId: string,
+  conversationId: string,
+): Promise<ChatMessageDTO[] | null> {
   if (!isUuid(conversationId)) return null;
   const [conversation] = await db
     .select({ id: aiConversations.id })
     .from(aiConversations)
-    .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, userId), isNull(aiConversations.hiddenAt)))
+    .where(
+      and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, userId), isNull(aiConversations.hiddenAt)),
+    )
     .limit(1);
   if (!conversation) return null;
   const rows = await db
@@ -81,7 +106,10 @@ export async function getConversationMessages(userId: string, conversationId: st
 const handler = aliasedTable(users, "handler");
 
 export async function alertCounts(): Promise<Record<AiAlertStatus, number>> {
-  const rows = await db.select({ status: aiSafetyAlerts.status, total: count() }).from(aiSafetyAlerts).groupBy(aiSafetyAlerts.status);
+  const rows = await db
+    .select({ status: aiSafetyAlerts.status, total: count() })
+    .from(aiSafetyAlerts)
+    .groupBy(aiSafetyAlerts.status);
   const counts: Record<AiAlertStatus, number> = { open: 0, in_review: 0, resolved: 0 };
   for (const row of rows) counts[row.status] = row.total;
   return counts;
@@ -114,7 +142,20 @@ function alertQuery(where?: SQL) {
     .where(where);
 }
 
-type AlertRow = Pick<AiSafetyAlert, "id" | "level" | "category" | "source" | "status" | "reason" | "conversationId" | "messageId" | "staffNote" | "createdAt" | "updatedAt"> & {
+type AlertRow = Pick<
+  AiSafetyAlert,
+  | "id"
+  | "level"
+  | "category"
+  | "source"
+  | "status"
+  | "reason"
+  | "conversationId"
+  | "messageId"
+  | "staffNote"
+  | "createdAt"
+  | "updatedAt"
+> & {
   memberId: string;
   memberName: string;
   memberUsername: string | null;
@@ -144,7 +185,11 @@ export async function listAlerts(input: { status: AiAlertStatus | "all"; page?: 
   const levelOrder = sql`case ${aiSafetyAlerts.level} when 'urgent' then 0 when 'elevated' then 1 else 2 end`;
   const [rows, [{ total }]] = await Promise.all([
     alertQuery(where)
-      .orderBy(...(input.status === "resolved" || input.status === "all" ? [desc(aiSafetyAlerts.updatedAt)] : [levelOrder, asc(aiSafetyAlerts.createdAt)]))
+      .orderBy(
+        ...(input.status === "resolved" || input.status === "all"
+          ? [desc(aiSafetyAlerts.updatedAt)]
+          : [levelOrder, asc(aiSafetyAlerts.createdAt)]),
+      )
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
     db.select({ total: count() }).from(aiSafetyAlerts).where(where),
@@ -167,7 +212,13 @@ export async function getAlertDetail(id: string): Promise<AlertDetailDTO | null>
       .limit(1),
     row.conversationId
       ? db
-          .select({ id: aiMessages.id, role: aiMessages.role, text: aiMessages.text, risk: aiMessages.risk, createdAt: aiMessages.createdAt })
+          .select({
+            id: aiMessages.id,
+            role: aiMessages.role,
+            text: aiMessages.text,
+            risk: aiMessages.risk,
+            createdAt: aiMessages.createdAt,
+          })
           .from(aiMessages)
           .where(eq(aiMessages.conversationId, row.conversationId))
           .orderBy(asc(aiMessages.createdAt), desc(aiMessages.role))
@@ -237,60 +288,69 @@ export async function aiStats(days = 30): Promise<AiStatsDTO> {
   const replies = and(inWindow, eq(aiMessages.role, "assistant"));
   const events = (types: string[]): SQL => and(gte(usageEvents.at, since), inArray(usageEvents.type, types))!;
 
-  const [[messageTotals], [replyTotals], [conversationTotals], alertRows, eventRows, daily, [resolved]] = await Promise.all([
-    db
-      .select({
-        members: sql<number>`count(distinct ${aiMessages.userId})`.mapWith(Number),
-        messages: count(),
-        voice: sql<number>`count(*) filter (where ${aiMessages.viaVoice})`.mapWith(Number),
-      })
-      .from(aiMessages)
-      .where(memberMessages),
-    db
-      .select({
-        helpful: sql<number>`count(*) filter (where ${aiMessages.feedback} = 1)`.mapWith(Number),
-        notHelpful: sql<number>`count(*) filter (where ${aiMessages.feedback} = -1)`.mapWith(Number),
-        fallbacks: sql<number>`count(*) filter (where ${aiMessages.outcome} <> 'answered')`.mapWith(Number),
-        avgLatency: sql<number | null>`avg(${aiMessages.latencyMs}) filter (where ${aiMessages.outcome} = 'answered')`.mapWith((value) => (value == null ? null : Math.round(Number(value)))),
-        input: sql<number>`coalesce(sum(${aiMessages.inputTokens}), 0)`.mapWith(Number),
-        output: sql<number>`coalesce(sum(${aiMessages.outputTokens}), 0)`.mapWith(Number),
-      })
-      .from(aiMessages)
-      .where(replies),
-    db.select({ total: count() }).from(aiConversations).where(gte(aiConversations.createdAt, since)),
-    db
-      .select({ status: aiSafetyAlerts.status, level: aiSafetyAlerts.level, total: count() })
-      .from(aiSafetyAlerts)
-      .where(gte(aiSafetyAlerts.createdAt, since))
-      .groupBy(aiSafetyAlerts.status, aiSafetyAlerts.level),
-    db
-      .select({ type: usageEvents.type, total: count(), sum: sql<number>`coalesce(sum((${usageEvents.meta}->>'count')::int), 0)`.mapWith(Number) })
-      .from(usageEvents)
-      .where(events(["ai_handoff_shown", "ai_handoff_sent", "ai_resources_shown"]))
-      .groupBy(usageEvents.type),
-    db
-      .select({
-        day: sql<string>`to_char(date_trunc('day', ${aiMessages.createdAt}), 'YYYY-MM-DD')`,
-        messages: count(),
-        members: sql<number>`count(distinct ${aiMessages.userId})`.mapWith(Number),
-      })
-      .from(aiMessages)
-      .where(memberMessages)
-      .groupBy(sql`1`)
-      .orderBy(sql`1`),
-    // "Resolved without a person": answered conversations with no alert and no hand-off card.
-    db
-      .select({ total: sql<number>`count(distinct ${aiConversations.id})`.mapWith(Number) })
-      .from(aiConversations)
-      .where(
-        and(
-          gte(aiConversations.createdAt, since),
-          sql`exists (select 1 from ${aiMessages} m where m.conversation_id = ${aiConversations.id} and m.role = 'assistant' and m.outcome = 'answered')`,
-          sql`not exists (select 1 from ${aiSafetyAlerts} a where a.conversation_id = ${aiConversations.id})`,
-          sql`not exists (select 1 from ${aiMessages} m where m.conversation_id = ${aiConversations.id} and m.cards ? 'handoff')`,
+  const [[messageTotals], [replyTotals], [conversationTotals], alertRows, eventRows, daily, [resolved]] =
+    await Promise.all([
+      db
+        .select({
+          members: sql<number>`count(distinct ${aiMessages.userId})`.mapWith(Number),
+          messages: count(),
+          voice: sql<number>`count(*) filter (where ${aiMessages.viaVoice})`.mapWith(Number),
+        })
+        .from(aiMessages)
+        .where(memberMessages),
+      db
+        .select({
+          helpful: sql<number>`count(*) filter (where ${aiMessages.feedback} = 1)`.mapWith(Number),
+          notHelpful: sql<number>`count(*) filter (where ${aiMessages.feedback} = -1)`.mapWith(Number),
+          fallbacks: sql<number>`count(*) filter (where ${aiMessages.outcome} <> 'answered')`.mapWith(Number),
+          avgLatency: sql<
+            number | null
+          >`avg(${aiMessages.latencyMs}) filter (where ${aiMessages.outcome} = 'answered')`.mapWith((value) =>
+            value == null ? null : Math.round(Number(value)),
+          ),
+          input: sql<number>`coalesce(sum(${aiMessages.inputTokens}), 0)`.mapWith(Number),
+          output: sql<number>`coalesce(sum(${aiMessages.outputTokens}), 0)`.mapWith(Number),
+        })
+        .from(aiMessages)
+        .where(replies),
+      db.select({ total: count() }).from(aiConversations).where(gte(aiConversations.createdAt, since)),
+      db
+        .select({ status: aiSafetyAlerts.status, level: aiSafetyAlerts.level, total: count() })
+        .from(aiSafetyAlerts)
+        .where(gte(aiSafetyAlerts.createdAt, since))
+        .groupBy(aiSafetyAlerts.status, aiSafetyAlerts.level),
+      db
+        .select({
+          type: usageEvents.type,
+          total: count(),
+          sum: sql<number>`coalesce(sum((${usageEvents.meta}->>'count')::int), 0)`.mapWith(Number),
+        })
+        .from(usageEvents)
+        .where(events(["ai_handoff_shown", "ai_handoff_sent", "ai_resources_shown"]))
+        .groupBy(usageEvents.type),
+      db
+        .select({
+          day: sql<string>`to_char(date_trunc('day', ${aiMessages.createdAt}), 'YYYY-MM-DD')`,
+          messages: count(),
+          members: sql<number>`count(distinct ${aiMessages.userId})`.mapWith(Number),
+        })
+        .from(aiMessages)
+        .where(memberMessages)
+        .groupBy(sql`1`)
+        .orderBy(sql`1`),
+      // "Resolved without a person": answered conversations with no alert and no hand-off card.
+      db
+        .select({ total: sql<number>`count(distinct ${aiConversations.id})`.mapWith(Number) })
+        .from(aiConversations)
+        .where(
+          and(
+            gte(aiConversations.createdAt, since),
+            sql`exists (select 1 from ${aiMessages} m where m.conversation_id = ${aiConversations.id} and m.role = 'assistant' and m.outcome = 'answered')`,
+            sql`not exists (select 1 from ${aiSafetyAlerts} a where a.conversation_id = ${aiConversations.id})`,
+            sql`not exists (select 1 from ${aiMessages} m where m.conversation_id = ${aiConversations.id} and m.cards ? 'handoff')`,
+          ),
         ),
-      ),
-  ]);
+    ]);
 
   const event = (type: string) => eventRows.find((row) => row.type === type);
   return {

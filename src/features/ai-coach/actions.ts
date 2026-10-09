@@ -5,7 +5,13 @@ import { permissionAction, UserFacingError } from "@/server/actions/safe-action"
 import { db } from "@/server/db/client";
 import { aiConversations, aiMessages, aiPreferences } from "@/server/db/schema";
 import { trackUsage } from "@/server/services/usage";
-import { clientEventSchema, conversationIdSchema, feedbackSchema, preferencesSchema } from "./schemas";
+import {
+  clientEventSchema,
+  coachDesignSchema,
+  conversationIdSchema,
+  feedbackSchema,
+  preferencesSchema,
+} from "./schemas";
 
 /**
  * "Clear" hides a conversation from the member. It is kept for the study
@@ -17,7 +23,13 @@ export const hideConversationAction = permissionAction("ai.chat")
     const updated = await db
       .update(aiConversations)
       .set({ hiddenAt: new Date() })
-      .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, viewer.id), isNull(aiConversations.hiddenAt)))
+      .where(
+        and(
+          eq(aiConversations.id, conversationId),
+          eq(aiConversations.userId, viewer.id),
+          isNull(aiConversations.hiddenAt),
+        ),
+      )
       .returning({ id: aiConversations.id });
     if (!updated.length) throw new UserFacingError("That conversation isn't available.");
     return { ok: true };
@@ -43,6 +55,37 @@ export const savePreferencesAction = permissionAction("ai.chat")
       .insert(aiPreferences)
       .values({ userId: viewer.id, ...parsedInput })
       .onConflictDoUpdate({ target: aiPreferences.userId, set: { ...parsedInput, updatedAt: new Date() } });
+    return { ok: true };
+  });
+
+/**
+ * Saves the member's coach design. The study sees which options were picked
+ * (usage event); the coach's name is free text, so it is never logged.
+ */
+export const saveCoachDesignAction = permissionAction("ai.chat")
+  .inputSchema(coachDesignSchema)
+  .action(async ({ parsedInput: design, ctx: { viewer } }) => {
+    const values = {
+      look: design.look,
+      coachName: design.name,
+      coachPronouns: design.pronouns,
+      appearance: design.appearance,
+      voice: design.voice,
+      tone: design.tone,
+      replyLength: design.replyLength,
+    };
+    await db
+      .insert(aiPreferences)
+      .values({ userId: viewer.id, ...values })
+      .onConflictDoUpdate({ target: aiPreferences.userId, set: { ...values, updatedAt: new Date() } });
+    await trackUsage(viewer.id, "ai_coach_designed", {
+      look: design.look,
+      named: Boolean(design.name),
+      customLook: Boolean(design.appearance),
+      voice: design.voice ?? "preset",
+      tone: design.tone,
+      replyLength: design.replyLength,
+    });
     return { ok: true };
   });
 

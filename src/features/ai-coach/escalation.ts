@@ -6,7 +6,14 @@ import { getSettings } from "@/features/admin/settings";
 import { notify } from "@/features/notifications/notify";
 import { hasPermission, parseRoles } from "@/server/auth/roles";
 import { db } from "@/server/db/client";
-import { aiSafetyAlerts, profiles, users, type AiAlertCategory, type AiAlertLevel, type AiAlertSource } from "@/server/db/schema";
+import {
+  aiSafetyAlerts,
+  profiles,
+  users,
+  type AiAlertCategory,
+  type AiAlertLevel,
+  type AiAlertSource,
+} from "@/server/db/schema";
 import { inngest } from "@/server/jobs/client";
 import { logger } from "@/server/logger";
 import { sendMail } from "@/server/services/mail";
@@ -49,7 +56,14 @@ export async function raiseAlert(input: RaiseAlertInput): Promise<string | null>
       if (riskRank(input.level) <= riskRank(existing.level)) return existing.id;
       await db
         .update(aiSafetyAlerts)
-        .set({ level: input.level, category: input.category, source: input.source, reason: input.reason.slice(0, 300), messageId: input.messageId, status: "open" })
+        .set({
+          level: input.level,
+          category: input.category,
+          source: input.source,
+          reason: input.reason.slice(0, 300),
+          messageId: input.messageId,
+          status: "open",
+        })
         .where(eq(aiSafetyAlerts.id, existing.id));
       alertId = existing.id;
     } else {
@@ -59,7 +73,11 @@ export async function raiseAlert(input: RaiseAlertInput): Promise<string | null>
         .returning({ id: aiSafetyAlerts.id });
       alertId = created.id;
     }
-    await trackUsage(input.userId, "ai_safety_flag", { level: input.level, category: input.category, source: input.source });
+    await trackUsage(input.userId, "ai_safety_flag", {
+      level: input.level,
+      category: input.category,
+      source: input.source,
+    });
     await queueAlertDelivery(alertId, input.level);
     return alertId;
   } catch (error) {
@@ -101,7 +119,10 @@ export async function deliverAlert(alertId: string, level: AiAlertLevel) {
       notify({
         userId: reviewer.id,
         kind: "system",
-        text: level === "support" ? "AI Coach: a member asked to talk to a person." : `AI Coach: a conversation needs ${label} review.`,
+        text:
+          level === "support"
+            ? "AI Coach: a member asked to talk to a person."
+            : `AI Coach: a conversation needs ${label} review.`,
         dedupeKey: `ai-alert:${alert.id}:${level}`,
         href,
       }),
@@ -110,7 +131,11 @@ export async function deliverAlert(alertId: string, level: AiAlertLevel) {
 
   // The member's peer navigator (in-app nudge, no details).
   if (level !== "support") {
-    const [profile] = await db.select({ coachId: profiles.coachId }).from(profiles).where(eq(profiles.userId, alert.userId)).limit(1);
+    const [profile] = await db
+      .select({ coachId: profiles.coachId })
+      .from(profiles)
+      .where(eq(profiles.userId, alert.userId))
+      .limit(1);
     if (profile?.coachId && !reviewers.some((reviewer) => reviewer.id === profile.coachId)) {
       await notify({
         userId: profile.coachId,
@@ -128,7 +153,10 @@ export async function deliverAlert(alertId: string, level: AiAlertLevel) {
   if (to) {
     await sendMail({
       to,
-      subject: level === "urgent" ? `URGENT: AI Coach safety alert – ${settings.studyName}` : `AI Coach alert – ${settings.studyName}`,
+      subject:
+        level === "urgent"
+          ? `URGENT: AI Coach safety alert – ${settings.studyName}`
+          : `AI Coach alert – ${settings.studyName}`,
       template: SafetyAlertEmail({ url, level, studyName: settings.studyName }),
       ref: `ai-alert:${alert.id}:${level}`,
     });
@@ -142,11 +170,18 @@ export async function deliverAlert(alertId: string, level: AiAlertLevel) {
       ref: `ai-alert:${alert.id}`,
     });
   }
-  return { reviewers: reviewers.length, emailed: Boolean(to), texted: level === "urgent" && Boolean(settings.aiOnCallPhone) };
+  return {
+    reviewers: reviewers.length,
+    emailed: Boolean(to),
+    texted: level === "urgent" && Boolean(settings.aiOnCallPhone),
+  };
 }
 
 /** Open and in-review alerts, for the staff nav badge. */
 export async function openAlertCount() {
-  const [row] = await db.select({ total: count() }).from(aiSafetyAlerts).where(inArray(aiSafetyAlerts.status, ["open", "in_review"]));
+  const [row] = await db
+    .select({ total: count() })
+    .from(aiSafetyAlerts)
+    .where(inArray(aiSafetyAlerts.status, ["open", "in_review"]));
   return row?.total ?? 0;
 }

@@ -1,4 +1,15 @@
-import type { AiAlertCategory, AiAlertLevel, AiAlertSource, AiAlertStatus, AiCards, AiCoachLook, AiOutcome, AiRiskLevel, AiTopic } from "@/server/db/schema/ai";
+import type {
+  AiAlertCategory,
+  AiAlertLevel,
+  AiAlertSource,
+  AiAlertStatus,
+  AiCards,
+  AiOutcome,
+  AiRiskLevel,
+  AiTopic,
+} from "@/server/db/schema/ai";
+import type { CoachDesign } from "./coach-design";
+import type { VisemeTrack } from "./voice-lib";
 
 /** Client-safe DTOs and the chat stream protocol of the AI Coach. */
 
@@ -16,12 +27,16 @@ export type ChatMessageDTO = {
   createdAt: string;
 };
 
-export type AiPreferencesDTO = { personalize: boolean; autoSpeak: boolean; look: AiCoachLook };
+export type AiPreferencesDTO = { personalize: boolean; autoSpeak: boolean; design: CoachDesign };
+
+/** One spoken piece of a reply: MP3 (base64) with its lip-sync track, or null audio = use the browser's voice for `text`. */
+export type SpeechChunkDTO = { seq: number; text: string; audio: string | null; visemes: VisemeTrack | null };
 
 /**
  * Events streamed from POST /api/ai/chat, one JSON object per line (NDJSON).
  * `text` deltas build the reply; `cards` merge into it; `done` carries the
- * stored reply.
+ * stored reply. When the request asked to `speak`, `speech` events carry the
+ * reply as audio, sentence by sentence, in order, all before `done`.
  */
 export type AiStreamEvent =
   | { type: "start"; conversationId: string; userMessageId: string; title: string }
@@ -29,6 +44,7 @@ export type AiStreamEvent =
   | { type: "status"; label: string }
   | { type: "cards"; cards: AiCards }
   | { type: "safety"; level: "elevated" | "urgent"; category: string }
+  | ({ type: "speech" } & SpeechChunkDTO)
   | { type: "done"; message: ChatMessageDTO }
   | { type: "error"; message: string };
 

@@ -42,18 +42,33 @@ test.describe("AI Coach, participant", () => {
     await expect(page.getByRole("link", { name: /Call or text 988/ }).first()).toBeVisible();
   });
 
-  test("coach settings save the chosen look", async ({ page }) => {
+  test("designs the coach and keeps the design", async ({ page }) => {
     await page.goto("/ai-coach");
     await dismissDialogs(page);
-    await page.getByRole("button", { name: "Coach settings" }).first().click();
-    const kai = page.getByRole("radio", { name: /Kai/ });
-    await kai.click();
-    await expect(kai).toHaveAttribute("aria-checked", "true");
-    await page.waitForTimeout(500);
+    const openDesigner = async () => {
+      await page.getByRole("button", { name: "Coach settings" }).first().click();
+      await page.getByRole("dialog").getByRole("button", { name: "Design your coach" }).click();
+      return page.getByRole("dialog", { name: "Design your coach" });
+    };
+
+    let designer = await openDesigner();
+    await designer.getByRole("radiogroup", { name: "Start from" }).getByRole("radio", { name: /Kai/ }).click();
+    await designer.getByLabel("Name", { exact: true }).fill("Nia");
+    await designer.getByRole("radiogroup", { name: "Hair" }).getByRole("radio", { name: "Braids" }).click();
+    await designer.getByRole("radiogroup", { name: "Tone" }).getByRole("radio", { name: /Calm/ }).click();
+    await designer.getByRole("button", { name: "Save coach" }).click();
+    await expect(page.getByText("Nia is ready")).toBeVisible();
+
     await page.reload();
-    await page.getByRole("button", { name: "Coach settings" }).first().click();
-    await expect(page.getByRole("radio", { name: /Kai/ })).toHaveAttribute("aria-checked", "true");
-    await page.getByRole("radio", { name: /Amara/ }).click();
+    await expect(page.getByRole("img", { name: /^Nia, your AI coach/ }).first()).toBeAttached();
+
+    // Back to the default coach.
+    designer = await openDesigner();
+    await expect(designer.getByLabel("Name", { exact: true })).toHaveValue("Nia");
+    await designer.getByRole("button", { name: "Reset" }).click();
+    await designer.getByRole("radiogroup", { name: "Start from" }).getByRole("radio", { name: /Amara/ }).click();
+    await designer.getByRole("button", { name: "Save coach" }).click();
+    await expect(page.getByText("Amara is ready")).toBeVisible();
   });
 });
 

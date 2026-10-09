@@ -17,7 +17,13 @@ export const updateAlertAction = permissionAction("ai.review")
       .where(eq(aiSafetyAlerts.id, id))
       .returning({ id: aiSafetyAlerts.id, userId: aiSafetyAlerts.userId });
     if (!alert) throw new UserFacingError("That alert no longer exists.");
-    await audit({ actor: viewer, action: "ai.alert", targetIds: [alert.userId], summary: `AI Coach alert marked ${status.replace("_", " ")}`, meta: { alertId: id, status } });
+    await audit({
+      actor: viewer,
+      action: "ai.alert",
+      targetIds: [alert.userId],
+      summary: `AI Coach alert marked ${status.replace("_", " ")}`,
+      meta: { alertId: id, status },
+    });
     revalidatePath("/admin/ai", "layout");
     return { ok: true };
   });
@@ -41,7 +47,11 @@ export const saveArticleAction = permissionAction("content.manage")
     };
     let id = input.id;
     if (id) {
-      const [current] = await db.select({ needsReview: aiKnowledgeArticles.needsReview }).from(aiKnowledgeArticles).where(eq(aiKnowledgeArticles.id, id)).limit(1);
+      const [current] = await db
+        .select({ needsReview: aiKnowledgeArticles.needsReview })
+        .from(aiKnowledgeArticles)
+        .where(eq(aiKnowledgeArticles.id, id))
+        .limit(1);
       if (!current) throw new UserFacingError("That article no longer exists.");
       // Keep the original reviewer when an approved article is saved again still approved.
       await db
@@ -49,7 +59,10 @@ export const saveArticleAction = permissionAction("content.manage")
         .set({ ...fields, ...(input.approved && !current.needsReview ? {} : review) })
         .where(eq(aiKnowledgeArticles.id, id));
     } else {
-      const [created] = await db.insert(aiKnowledgeArticles).values({ ...fields, ...review }).returning({ id: aiKnowledgeArticles.id });
+      const [created] = await db
+        .insert(aiKnowledgeArticles)
+        .values({ ...fields, ...review })
+        .returning({ id: aiKnowledgeArticles.id });
       id = created.id;
     }
     await audit({
@@ -65,9 +78,17 @@ export const saveArticleAction = permissionAction("content.manage")
 export const deleteArticleAction = permissionAction("content.manage")
   .inputSchema(articleIdSchema)
   .action(async ({ parsedInput: { id }, ctx: { viewer } }) => {
-    const [deleted] = await db.delete(aiKnowledgeArticles).where(eq(aiKnowledgeArticles.id, id)).returning({ title: aiKnowledgeArticles.title });
+    const [deleted] = await db
+      .delete(aiKnowledgeArticles)
+      .where(eq(aiKnowledgeArticles.id, id))
+      .returning({ title: aiKnowledgeArticles.title });
     if (!deleted) throw new UserFacingError("That article no longer exists.");
-    await audit({ actor: viewer, action: "ai.knowledge", summary: `Deleted AI knowledge article “${deleted.title.slice(0, 80)}”`, meta: { articleId: id } });
+    await audit({
+      actor: viewer,
+      action: "ai.knowledge",
+      summary: `Deleted AI knowledge article “${deleted.title.slice(0, 80)}”`,
+      meta: { articleId: id },
+    });
     revalidatePath("/admin/ai/knowledge", "layout");
     return { ok: true };
   });

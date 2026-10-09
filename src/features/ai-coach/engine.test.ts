@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * append-only history, and the guards for refusals and cut-off tool calls.
  */
 
-type Scripted = { text?: string; content: Anthropic.Beta.BetaContentBlock[]; stop_reason: Anthropic.Beta.BetaMessage["stop_reason"] };
+type Scripted = {
+  text?: string;
+  content: Anthropic.Beta.BetaContentBlock[];
+  stop_reason: Anthropic.Beta.BetaMessage["stop_reason"];
+};
 const script: Scripted[] = [];
 const requests: Anthropic.Beta.MessageCreateParams[] = [];
 
@@ -26,7 +30,11 @@ vi.mock("./claude", () => ({
             on: (_event: "text", listener: (delta: string) => void) => listeners.push(listener),
             finalMessage: async () => {
               if (next.text) for (const listener of listeners) listener(next.text);
-              return { content: next.content, stop_reason: next.stop_reason, usage: { input_tokens: 10, output_tokens: 5 } };
+              return {
+                content: next.content,
+                stop_reason: next.stop_reason,
+                usage: { input_tokens: 10, output_tokens: 5 },
+              };
             },
           };
         },
@@ -35,7 +43,9 @@ vi.mock("./claude", () => ({
   }),
 }));
 
-const runTool = vi.fn<(name: string, input: unknown) => Promise<{ content: string }>>(async (name) => ({ content: `result of ${name}` }));
+const runTool = vi.fn<(name: string, input: unknown) => Promise<{ content: string }>>(async (name) => ({
+  content: `result of ${name}`,
+}));
 vi.mock("./tools", () => ({ TOOLS: [], runTool: (name: string, input: unknown) => runTool(name, input) }));
 // Modules the engine imports but these tests don't reach.
 vi.mock("@/server/db/client", () => ({ db: {} }));
@@ -49,7 +59,8 @@ vi.mock("@/server/services/usage", () => ({ trackUsage: vi.fn() }));
 
 const { streamReply } = await import("./engine");
 
-const text = (value: string): Anthropic.Beta.BetaContentBlock => ({ type: "text", text: value, citations: null }) as Anthropic.Beta.BetaContentBlock;
+const text = (value: string): Anthropic.Beta.BetaContentBlock =>
+  ({ type: "text", text: value, citations: null }) as Anthropic.Beta.BetaContentBlock;
 const toolUse = (id: string, name: string): Anthropic.Beta.BetaContentBlock =>
   ({ type: "tool_use", id, name, input: { query: "pep" } }) as Anthropic.Beta.BetaContentBlock;
 
@@ -94,7 +105,11 @@ describe("streamReply", () => {
 
   it("separates text from different rounds with a blank line", async () => {
     script.push(
-      { text: "Let me check.", content: [text("Let me check."), toolUse("t1", "search_knowledge")], stop_reason: "tool_use" },
+      {
+        text: "Let me check.",
+        content: [text("Let me check."), toolUse("t1", "search_knowledge")],
+        stop_reason: "tool_use",
+      },
       { text: "Here's what I found.", content: [text("Here's what I found.")], stop_reason: "end_turn" },
     );
     let streamed = "";
@@ -110,12 +125,15 @@ describe("streamReply", () => {
 
   it("refuses to run a tool call cut off by max_tokens", async () => {
     script.push({ content: [toolUse("t1", "search_knowledge")], stop_reason: "max_tokens" });
-    await expect(streamReply(history, user, context(), () => undefined, { input: 0, output: 0 })).rejects.toThrow(/cut off/);
+    await expect(streamReply(history, user, context(), () => undefined, { input: 0, output: 0 })).rejects.toThrow(
+      /cut off/,
+    );
     expect(runTool).not.toHaveBeenCalled();
   });
 
   it("forbids tools on the last round so the turn always ends with an answer", async () => {
-    for (let round = 0; round < 5; round++) script.push({ content: [toolUse(`t${round}`, "search_knowledge")], stop_reason: "tool_use" });
+    for (let round = 0; round < 5; round++)
+      script.push({ content: [toolUse(`t${round}`, "search_knowledge")], stop_reason: "tool_use" });
     script.push({ text: "Done.", content: [text("Done.")], stop_reason: "end_turn" });
     const result = await streamReply(history, user, context(), () => undefined, { input: 0, output: 0 });
     expect(requests.at(-1)?.tool_choice).toEqual({ type: "none" });

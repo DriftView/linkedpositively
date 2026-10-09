@@ -19,9 +19,12 @@ const FILLER_WORDS = new Set(
  * Null when there is nothing to search for.
  */
 export function anyWordQuery(text: string, maxWords = 12) {
-  const words = (text.toLowerCase().replace(/['’]/g, "").match(/[\p{L}\p{N}]+/gu) ?? []).filter(
-    (word) => word.length > 1 && word !== "or" && !FILLER_WORDS.has(word),
-  );
+  const words = (
+    text
+      .toLowerCase()
+      .replace(/['’]/g, "")
+      .match(/[\p{L}\p{N}]+/gu) ?? []
+  ).filter((word) => word.length > 1 && word !== "or" && !FILLER_WORDS.has(word));
   const unique = [...new Set(words)].slice(0, maxWords);
   return unique.length ? unique.join(" or ") : null;
 }

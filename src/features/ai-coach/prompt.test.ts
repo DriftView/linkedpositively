@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMemberContext, conversationTitle, speakableText, type MemberContext } from "./prompt";
+import { buildMemberContext, buildPersona, conversationTitle, speakableText, type MemberContext } from "./prompt";
 
 const base: MemberContext = {
   personalize: true,
@@ -43,7 +43,9 @@ describe("conversationTitle", () => {
   });
 
   it("cuts long questions on a word boundary", () => {
-    const title = conversationTitle("I have a question about PrEP and whether it works if I miss a dose sometimes on weekends");
+    const title = conversationTitle(
+      "I have a question about PrEP and whether it works if I miss a dose sometimes on weekends",
+    );
     expect(title.endsWith("…")).toBe(true);
     expect(title.length).toBeLessThanOrEqual(61);
   });
@@ -51,6 +53,17 @@ describe("conversationTitle", () => {
 
 describe("speakableText", () => {
   it("drops markdown markers", () => {
-    expect(speakableText("**PrEP** works.\n\n- Take it daily\n- See a provider")).toBe("PrEP works.\nTake it daily\nSee a provider");
+    expect(speakableText("**PrEP** works.\n\n- Take it daily\n- See a provider")).toBe(
+      "PrEP works.\nTake it daily\nSee a provider",
+    );
+  });
+});
+
+describe("buildPersona", () => {
+  it("describes the member's coach design", () => {
+    const persona = buildPersona({ name: "Nia", pronouns: "they", tone: "calm", replyLength: "brief" });
+    expect(persona).toContain("Your name is Nia and your pronouns are they/them.");
+    expect(persona).toContain("Calm and steady");
+    expect(persona).toContain("one to three sentences");
   });
 });

@@ -59,7 +59,13 @@ export function ArticleForm({ article }: { article: ArticleFormDTO }) {
     <form onSubmit={save} noValidate className="space-y-5 rounded-2xl border bg-card p-5 shadow-soft">
       <Field data-invalid={Boolean(errors.title)}>
         <FieldLabel htmlFor="a-title">Title</FieldLabel>
-        <Input id="a-title" value={title} onChange={(e) => setTitle(e.target.value)} className="h-9" placeholder="PEP: what to do after a possible exposure" />
+        <Input
+          id="a-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="h-9"
+          placeholder="PEP: what to do after a possible exposure"
+        />
         <FieldError>{errors.title}</FieldError>
       </Field>
       <Field>
@@ -90,14 +96,21 @@ export function ArticleForm({ article }: { article: ArticleFormDTO }) {
           <FieldError>{errors.body}</FieldError>
         ) : (
           <FieldDescription>
-            Plain text; separate paragraphs with a blank line. The coach answers health questions only from approved content like this, so write the facts you want it
-            to give, in plain language.
+            Plain text; separate paragraphs with a blank line. The coach answers health questions only from approved
+            content like this, so write the facts you want it to give, in plain language.
           </FieldDescription>
         )}
       </Field>
       <Field data-invalid={Boolean(errors.sourceUrl)}>
         <FieldLabel htmlFor="a-source">Source (for reviewers)</FieldLabel>
-        <Input id="a-source" type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} className="h-9" placeholder="https://www.cdc.gov/…" />
+        <Input
+          id="a-source"
+          type="url"
+          value={sourceUrl}
+          onChange={(e) => setSourceUrl(e.target.value)}
+          className="h-9"
+          placeholder="https://www.cdc.gov/…"
+        />
         <FieldError>{errors.sourceUrl}</FieldError>
       </Field>
 
@@ -110,12 +123,18 @@ export function ArticleForm({ article }: { article: ArticleFormDTO }) {
               Ticking this records you as the reviewer.
             </span>
           </span>
-          <Switch checked={approved} onCheckedChange={(value) => (setApproved(value), value ? null : setPublished(false))} aria-label="Approved by the study team" />
+          <Switch
+            checked={approved}
+            onCheckedChange={(value) => (setApproved(value), value ? null : setPublished(false))}
+            aria-label="Approved by the study team"
+          />
         </label>
         <label className="flex items-start justify-between gap-4 text-sm">
           <span>
             <span className="font-semibold">Published</span>
-            <span className="mt-0.5 block text-muted-foreground">The coach uses published articles in its answers.</span>
+            <span className="mt-0.5 block text-muted-foreground">
+              The coach uses published articles in its answers.
+            </span>
             {errors.published ? <span className="mt-1 block text-destructive">{errors.published}</span> : null}
           </span>
           <Switch

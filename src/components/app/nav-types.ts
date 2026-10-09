@@ -45,6 +45,8 @@ export type NavItem = {
   primary?: boolean;
   external?: boolean;
   badge?: number;
+  /** Small text marker for navigation items, such as a new feature. */
+  tag?: string;
 };
 
 export type NavGroup = { label: string; items: NavItem[] };

@@ -9,7 +9,7 @@ import { can, type Viewer } from "@/server/auth/session";
  */
 export function participantNav(viewer: Viewer, counts: { wallNew?: number; tipsNew?: number } = {}): NavItem[] {
   const items: NavItem[] = [{ href: "/", label: "Home", icon: "home", primary: true, badge: counts.wallNew }];
-  if (can(viewer, "ai.chat")) items.push({ href: "/ai-coach", label: "AI Coach", icon: "ai" });
+  if (can(viewer, "ai.chat")) items.push({ href: "/ai-coach", label: "AI Coach", icon: "ai", tag: "New" });
   if (can(viewer, "tips.view")) items.push({ href: "/tips", label: "Tips", icon: "tips", primary: true, badge: counts.tipsNew });
   if (can(viewer, "tracker.use")) items.push({ href: "/tracker", label: "Tracker", icon: "tracker", primary: true });
   if (can(viewer, "checkin.weekly")) {
@@ -42,7 +42,7 @@ export function coachingNav(
     { href: "/coaching/messages", label: "Messages", icon: "messages", primary: true, badge: counts.unreadMessages },
     { href: "/coaching/files", label: "My files", icon: "files", primary: true },
   ];
-  if (can(viewer, "ai.chat")) items.push({ href: "/coaching/ai-coach", label: "AI Coach", icon: "ai" });
+  if (can(viewer, "ai.chat")) items.push({ href: "/coaching/ai-coach", label: "AI Coach", icon: "ai", tag: "New" });
   if (options.hasZoom) items.push({ href: "/coaching/zoom", label: "Launch Zoom", icon: "video", external: true });
   if (can(viewer, "lp.access")) items.push({ href: "/", label: "Link Positively", icon: "home" });
   return items;

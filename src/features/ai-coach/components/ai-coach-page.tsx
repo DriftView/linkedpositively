@@ -12,7 +12,15 @@ import { AiCoach } from "./ai-coach";
  * The AI Coach page body, shared by /ai-coach (Link Positively) and
  * /coaching/ai-coach (Peer Navigation). `?c=` opens a conversation.
  */
-export async function AiCoachPage({ viewer, basePath, searchParams }: { viewer: Viewer; basePath: string; searchParams: Record<string, string | string[] | undefined> }) {
+export async function AiCoachPage({
+  viewer,
+  basePath,
+  searchParams,
+}: {
+  viewer: Viewer;
+  basePath: string;
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const settings = await getSettings();
   if (!settings.aiCoachEnabled) {
     return (
@@ -22,7 +30,9 @@ export async function AiCoachPage({ viewer, basePath, searchParams }: { viewer: 
             <Bot aria-hidden />
           </EmptyMedia>
           <EmptyTitle>The AI coach is resting</EmptyTitle>
-          <EmptyDescription>It isn&apos;t available right now. Your peer navigator and the study team are still here for you.</EmptyDescription>
+          <EmptyDescription>
+            It isn&apos;t available right now. Your peer navigator and the study team are still here for you.
+          </EmptyDescription>
         </EmptyHeader>
       </Empty>
     );

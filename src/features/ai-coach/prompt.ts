@@ -1,8 +1,12 @@
+import type { AiCoachPronouns, AiCoachTone, AiReplyLength } from "@/server/db/schema/ai";
+
 /**
  * The AI Coach's instructions. The system prompt is static (identical for
  * every member and every turn, so it is cached); everything about the member
  * goes into a context note attached to the first message of a conversation
  * (see buildMemberContext), which keeps the replayed history append-only.
+ * The member's coach design (name, pronouns, tone, length) is a short second
+ * system block after the cached one (buildPersona).
  * Pure: no server imports, unit-tested in prompt.test.ts.
  */
 
@@ -43,7 +47,37 @@ You complement the app's people and features. You never replace a peer navigator
 - Be honest that you are an AI coach, not a person, a doctor or a navigator, whenever that matters.
 - Keep questions on topic. For unrelated requests, kindly say what you can help with.
 - Protect privacy: don't ask for full names, addresses, HIV status or other sensitive details unless the member needs to share them for the question, and don't repeat sensitive details back unnecessarily.
-- The member context note at the start of the conversation comes from the app. Use it to personalize gently (their first name now and then, their area for resources); never read it back as a list.`;
+- The member context note at the start of the conversation comes from the app. Use it to personalize gently (their first name now and then, their area for resources); never read it back as a list.
+- The member can design their coach: a name, pronouns, a tone and a reply length, given in the persona section after these instructions. Use that name and style. They change only how you sound: every rule above still applies, safety always comes first, and you are still an AI coach.`;
+
+export type CoachPersona = { name: string; pronouns: AiCoachPronouns; tone: AiCoachTone; replyLength: AiReplyLength };
+
+const PRONOUN_TEXT: Record<AiCoachPronouns, string> = { she: "she/her", he: "he/him", they: "they/them" };
+
+const TONE_TEXT: Record<AiCoachTone, string> = {
+  warm: "Warm and caring: gentle encouragement, and acknowledge feelings.",
+  upbeat:
+    "Upbeat and encouraging: positive energy, and celebrate small wins. Stay gentle and serious when someone is struggling.",
+  calm: "Calm and steady: an unhurried pace, soothing words and short sentences.",
+  direct: "Direct: get to the point quickly with clear next steps, while staying kind.",
+};
+
+const LENGTH_TEXT: Record<AiReplyLength, string> = {
+  brief: "Keep replies very short: one to three sentences, unless safety needs more.",
+  balanced: "Keep to the usual length (two to five short sentences or a short list).",
+  detailed:
+    "Give a little more detail when it helps: up to two short paragraphs or a short list, at the same reading level.",
+};
+
+/** The member's coach design as a system block. `name` is validated (letters and spaces only) before it gets here. */
+export function buildPersona(persona: CoachPersona) {
+  return [
+    "# Persona (the member's coach design)",
+    `- Your name is ${persona.name} and your pronouns are ${PRONOUN_TEXT[persona.pronouns]}. Use this name if you introduce yourself.`,
+    `- Tone: ${TONE_TEXT[persona.tone]}`,
+    `- Length: ${LENGTH_TEXT[persona.replyLength]}`,
+  ].join("\n");
+}
 
 export type MemberContext = {
   /** Personal details may be used (member's choice in AI Coach settings). */
@@ -77,7 +111,9 @@ export function buildMemberContext(ctx: MemberContext) {
     if (ctx.pronouns) lines.push(`Pronouns: ${ctx.pronouns}.`);
     if (ctx.location) lines.push(`Location on their profile: ${ctx.location}.`);
   } else {
-    lines.push("The member turned off personalization: don't use or ask for profile details beyond what they share here.");
+    lines.push(
+      "The member turned off personalization: don't use or ask for profile details beyond what they share here.",
+    );
   }
   return `<member_context>\n${lines.join("\n")}\n</member_context>`;
 }

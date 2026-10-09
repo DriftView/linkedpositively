@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_RECORDING_SECONDS } from "../constants";
 
-type Recognition = {
+export type Recognition = {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
@@ -14,10 +14,30 @@ type Recognition = {
   stop: () => void;
 };
 
-function recognitionClass(): (new () => Recognition) | null {
+export function recognitionClass(): (new () => Recognition) | null {
   if (typeof window === "undefined") return null;
-  const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
+  const w = window as unknown as {
+    SpeechRecognition?: new () => Recognition;
+    webkitSpeechRecognition?: new () => Recognition;
+  };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+/** A recording type this browser can make, for MediaRecorder. */
+export function recordingMimeType() {
+  return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((type) =>
+    MediaRecorder.isTypeSupported?.(type),
+  );
+}
+
+/** Sends a recording to /api/ai/transcribe. Resolves to the words (empty when nothing was understood); throws a member-facing message. */
+export async function transcribeRecording(blob: Blob) {
+  const form = new FormData();
+  form.append("audio", blob, "voice-message");
+  const response = await fetch("/api/ai/transcribe", { method: "POST", body: form });
+  const data = (await response.json().catch(() => ({}))) as { text?: string; error?: string };
+  if (!response.ok) throw new Error(data.error ?? "We couldn't understand that recording.");
+  return data.text?.trim() ?? "";
 }
 
 export type VoiceInputState = "idle" | "recording" | "transcribing";
@@ -29,7 +49,15 @@ export type VoiceInputState = "idle" | "recording" | "transcribing";
  * own speech recognition is used where it exists. The words land in the
  * message box for the member to check before sending.
  */
-export function useVoiceInput({ serverTranscription, onText, onError }: { serverTranscription: boolean; onText: (text: string) => void; onError: (message: string) => void }) {
+export function useVoiceInput({
+  serverTranscription,
+  onText,
+  onError,
+}: {
+  serverTranscription: boolean;
+  onText: (text: string) => void;
+  onError: (message: string) => void;
+}) {
   const [state, setState] = useState<VoiceInputState>("idle");
   const [supported, setSupported] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -41,7 +69,9 @@ export function useVoiceInput({ serverTranscription, onText, onError }: { server
     // Feature detection has to wait for the browser.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSupported(
-      serverTranscription ? typeof window !== "undefined" && "MediaRecorder" in window && Boolean(navigator.mediaDevices?.getUserMedia) : Boolean(recognitionClass()),
+      serverTranscription
+        ? typeof window !== "undefined" && "MediaRecorder" in window && Boolean(navigator.mediaDevices?.getUserMedia)
+        : Boolean(recognitionClass()),
     );
   }, [serverTranscription]);
 
@@ -77,7 +107,7 @@ export function useVoiceInput({ serverTranscription, onText, onError }: { server
         return;
       }
       streamRef.current = stream;
-      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((type) => MediaRecorder.isTypeSupported?.(type));
+      const mimeType = recordingMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recorderRef.current = recorder;
       const chunks: Blob[] = [];
@@ -93,12 +123,8 @@ export function useVoiceInput({ serverTranscription, onText, onError }: { server
         }
         setState("transcribing");
         try {
-          const form = new FormData();
-          form.append("audio", blob, "voice-message");
-          const response = await fetch("/api/ai/transcribe", { method: "POST", body: form });
-          const data = (await response.json().catch(() => ({}))) as { text?: string; error?: string };
-          if (!response.ok) throw new Error(data.error ?? "We couldn't understand that recording.");
-          if (data.text) onText(data.text);
+          const text = await transcribeRecording(blob);
+          if (text) onText(text);
           else onError("We didn't catch that. Try again, or type your message.");
         } catch (error) {
           onError(error instanceof Error ? error.message : "Voice isn't working right now. Please type your message.");
@@ -108,7 +134,10 @@ export function useVoiceInput({ serverTranscription, onText, onError }: { server
       };
       recorder.start();
       setState("recording");
-      timerRef.current = setTimeout(() => recorder.state === "recording" && recorder.stop(), MAX_RECORDING_SECONDS * 1000);
+      timerRef.current = setTimeout(
+        () => recorder.state === "recording" && recorder.stop(),
+        MAX_RECORDING_SECONDS * 1000,
+      );
       return;
     }
 
@@ -128,7 +157,8 @@ export function useVoiceInput({ serverTranscription, onText, onError }: { server
     };
     recognition.onerror = (event) => {
       if (event.error === "not-allowed") onError("Allow microphone access to talk to your coach.");
-      else if (event.error !== "no-speech" && event.error !== "aborted") onError("Voice isn't working right now. Please type your message.");
+      else if (event.error !== "no-speech" && event.error !== "aborted")
+        onError("Voice isn't working right now. Please type your message.");
     };
     recognition.onend = () => {
       recognitionRef.current = null;

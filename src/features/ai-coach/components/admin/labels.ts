@@ -1,6 +1,10 @@
 import type { AiAlertCategory, AiAlertLevel, AiAlertSource, AiAlertStatus, AiTopic } from "@/server/db/schema/ai";
 
-export const LEVEL_LABEL: Record<AiAlertLevel, string> = { urgent: "Urgent", elevated: "Safety concern", support: "Wants a person" };
+export const LEVEL_LABEL: Record<AiAlertLevel, string> = {
+  urgent: "Urgent",
+  elevated: "Safety concern",
+  support: "Wants a person",
+};
 
 export const LEVEL_CLASS: Record<AiAlertLevel, string> = {
   urgent: "bg-destructive text-white",
@@ -25,7 +29,11 @@ export const SOURCE_LABEL: Record<AiAlertSource, string> = {
   assistant: "Raised by the coach",
 };
 
-export const STATUS_LABEL: Record<AiAlertStatus, string> = { open: "New", in_review: "In review", resolved: "Resolved" };
+export const STATUS_LABEL: Record<AiAlertStatus, string> = {
+  open: "New",
+  in_review: "In review",
+  resolved: "Resolved",
+};
 
 export const TOPIC_LABEL: Record<AiTopic, string> = {
   hiv: "HIV",

@@ -34,6 +34,7 @@ export const USAGE_TYPES = [
   "ai_safety_flag",
   "ai_feedback",
   "ai_fallback",
+  "ai_coach_designed",
 ] as const;
 export type UsageType = (typeof USAGE_TYPES)[number];
 

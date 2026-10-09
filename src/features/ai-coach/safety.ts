@@ -24,17 +24,20 @@ const RULES: Rule[] = [
   {
     level: "urgent",
     category: "overdose",
-    pattern: /\b(overdos(e|ed|ing)|od'?d|took (too many|a bunch of|all (my|the)) (pills|meds)|can'?t wake (him|her|them) up)\b/,
+    pattern:
+      /\b(overdos(e|ed|ing)|od'?d|took (too many|a bunch of|all (my|the)) (pills|meds)|can'?t wake (him|her|them) up)\b/,
   },
   {
     level: "urgent",
     category: "violence",
-    pattern: /\b(going to|gonna|want to|wanna) (kill|hurt|shoot|stab) (him|her|them|someone|somebody|people)\b|\bbring a (gun|knife) to\b/,
+    pattern:
+      /\b(going to|gonna|want to|wanna) (kill|hurt|shoot|stab) (him|her|them|someone|somebody|people)\b|\bbring a (gun|knife) to\b/,
   },
   {
     level: "urgent",
     category: "medical",
-    pattern: /\b(can'?t breathe|chest pain|having a seizure|passed out|bleeding (a lot|heavily|won'?t stop)|throat (is )?closing)\b/,
+    pattern:
+      /\b(can'?t breathe|chest pain|having a seizure|passed out|bleeding (a lot|heavily|won'?t stop)|throat (is )?closing)\b/,
   },
   {
     level: "elevated",
@@ -62,7 +65,8 @@ export function detectKeywordRisk(text: string): KeywordRisk | null {
   let found: KeywordRisk | null = null;
   for (const rule of RULES) {
     if (!rule.pattern.test(normalized)) continue;
-    if (!found || (rule.level === "urgent" && found.level !== "urgent")) found = { level: rule.level, category: rule.category };
+    if (!found || (rule.level === "urgent" && found.level !== "urgent"))
+      found = { level: rule.level, category: rule.category };
     if (found.level === "urgent") break;
   }
   return found;

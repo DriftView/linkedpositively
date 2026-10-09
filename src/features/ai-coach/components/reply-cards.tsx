@@ -2,7 +2,18 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { BookOpen, ExternalLink, Globe, HeartHandshake, LifeBuoy, Mail, MapPin, Navigation, Phone, Send } from "lucide-react";
+import {
+  BookOpen,
+  ExternalLink,
+  Globe,
+  HeartHandshake,
+  LifeBuoy,
+  Mail,
+  MapPin,
+  Navigation,
+  Phone,
+  Send,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -22,18 +33,28 @@ export function CoachMarkdown({ text }: { text: string }) {
       {blocks.map((block, index) =>
         block.type === "paragraph" ? (
           <p key={index}>
-            {block.spans.map((span, i) => (span.bold ? <strong key={i}>{span.text}</strong> : <span key={i}>{span.text}</span>))}
+            {block.spans.map((span, i) =>
+              span.bold ? <strong key={i}>{span.text}</strong> : <span key={i}>{span.text}</span>,
+            )}
           </p>
         ) : block.ordered ? (
           <ol key={index} className="list-decimal space-y-1 pl-5">
             {block.items.map((item, i) => (
-              <li key={i}>{item.map((span, j) => (span.bold ? <strong key={j}>{span.text}</strong> : <span key={j}>{span.text}</span>))}</li>
+              <li key={i}>
+                {item.map((span, j) =>
+                  span.bold ? <strong key={j}>{span.text}</strong> : <span key={j}>{span.text}</span>,
+                )}
+              </li>
             ))}
           </ol>
         ) : (
           <ul key={index} className="list-disc space-y-1 pl-5 marker:text-brand-magenta">
             {block.items.map((item, i) => (
-              <li key={i}>{item.map((span, j) => (span.bold ? <strong key={j}>{span.text}</strong> : <span key={j}>{span.text}</span>))}</li>
+              <li key={i}>
+                {item.map((span, j) =>
+                  span.bold ? <strong key={j}>{span.text}</strong> : <span key={j}>{span.text}</span>,
+                )}
+              </li>
             ))}
           </ul>
         ),
@@ -45,17 +66,23 @@ export function CoachMarkdown({ text }: { text: string }) {
 export function CrisisCard({ level }: { level: "elevated" | "urgent" }) {
   const lines = level === "urgent" ? CRISIS_LINES.slice(0, 3) : CRISIS_LINES;
   return (
-    <section aria-label="Get help now" role={level === "urgent" ? "alert" : undefined} className="rounded-2xl border border-destructive/25 bg-destructive/5 p-4 dark:bg-destructive/10">
+    <section
+      aria-label="Get help now"
+      role={level === "urgent" ? "alert" : undefined}
+      className="rounded-2xl border border-destructive/25 bg-destructive/5 p-4 dark:bg-destructive/10"
+    >
       <h3 className="flex items-center gap-2 font-sans text-sm font-semibold text-destructive">
         <LifeBuoy aria-hidden className="size-4" />
-        {level === "urgent" ? "You don't have to go through this alone. Help is available right now." : "Support is here if you need it"}
+        {level === "urgent"
+          ? "You don't have to go through this alone. Help is available right now."
+          : "Support is here if you need it"}
       </h3>
       <ul className="mt-3 grid gap-2 sm:grid-cols-2">
         {lines.map((line) => (
           <li key={line.id}>
             <a
               href={line.href}
-              className="flex min-h-11 flex-col justify-center rounded-xl border bg-card px-3 py-2 text-sm shadow-soft outline-none transition-colors hover:border-destructive/40 focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="flex min-h-11 flex-col justify-center rounded-xl border bg-card px-3 py-2 text-sm shadow-soft transition-colors outline-none hover:border-destructive/40 focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <span className="font-semibold">{line.label}</span>
               <span className="text-xs text-muted-foreground">{line.detail}</span>
@@ -63,7 +90,10 @@ export function CrisisCard({ level }: { level: "elevated" | "urgent" }) {
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-muted-foreground">The study team has been asked to check in. They aren&apos;t an emergency service and may not see this right away.</p>
+      <p className="mt-3 text-xs text-muted-foreground">
+        The study team has been asked to check in. They aren&apos;t an emergency service and may not see this right
+        away.
+      </p>
     </section>
   );
 }
@@ -82,7 +112,10 @@ export function ResourceCards({ resources }: { resources: NonNullable<AiCards["r
                 </span>
                 <div className="min-w-0 flex-1">
                   {resource.href ? (
-                    <Link href={resource.href} className="font-semibold text-foreground hover:text-primary hover:underline">
+                    <Link
+                      href={resource.href}
+                      className="font-semibold text-foreground hover:text-primary hover:underline"
+                    >
                       {resource.title}
                     </Link>
                   ) : (
@@ -125,7 +158,12 @@ export function ResourceCards({ resources }: { resources: NonNullable<AiCards["r
   );
 }
 
-const SOURCE_LABEL = { tip: "Thrive Tip", page: "Help page", glossary: "Glossary", article: "Study-approved info" } as const;
+const SOURCE_LABEL = {
+  tip: "Thrive Tip",
+  page: "Help page",
+  glossary: "Glossary",
+  article: "Study-approved info",
+} as const;
 
 export function SourceList({ sources }: { sources: NonNullable<AiCards["sources"]> }) {
   return (
@@ -175,7 +213,10 @@ export function HandoffCard({ handoff }: { handoff: NonNullable<AiCards["handoff
 
   if (handoff.kind === "navigator") {
     return (
-      <section aria-label="Message your peer navigator" className="rounded-2xl border border-brand-magenta/25 bg-brand-magenta/5 p-4 dark:bg-brand-magenta/10">
+      <section
+        aria-label="Message your peer navigator"
+        className="rounded-2xl border border-brand-magenta/25 bg-brand-magenta/5 p-4 dark:bg-brand-magenta/10"
+      >
         <h3 className="flex items-center gap-2 font-sans text-sm font-semibold">
           <HeartHandshake aria-hidden className="size-4 text-brand-magenta" />
           Message {handoff.coachName ?? "your peer navigator"}
@@ -183,7 +224,10 @@ export function HandoffCard({ handoff }: { handoff: NonNullable<AiCards["handoff
         {state === "sent" ? (
           <p className="mt-2 text-sm">
             Sent. {handoff.coachName ?? "Your navigator"} will reply in{" "}
-            <Link href={handoff.href ?? "/coaching/messages"} className="font-medium text-primary underline-offset-4 hover:underline">
+            <Link
+              href={handoff.href ?? "/coaching/messages"}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
               Messages
             </Link>
             .
@@ -202,7 +246,11 @@ export function HandoffCard({ handoff }: { handoff: NonNullable<AiCards["handoff
               className="mt-1.5 block w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 dark:bg-input/30"
             />
             <div className="mt-2 flex justify-end">
-              <Button onClick={send} disabled={state === "sending" || !draft.trim()} className="h-10 rounded-full px-4 font-semibold">
+              <Button
+                onClick={send}
+                disabled={state === "sending" || !draft.trim()}
+                className="h-10 rounded-full px-4 font-semibold"
+              >
                 {state === "sending" ? <Spinner /> : <Send aria-hidden />}
                 Send
               </Button>
@@ -214,16 +262,23 @@ export function HandoffCard({ handoff }: { handoff: NonNullable<AiCards["handoff
   }
 
   return (
-    <section aria-label="Reach the study team" className="rounded-2xl border border-brand-magenta/25 bg-brand-magenta/5 p-4 dark:bg-brand-magenta/10">
+    <section
+      aria-label="Reach the study team"
+      className="rounded-2xl border border-brand-magenta/25 bg-brand-magenta/5 p-4 dark:bg-brand-magenta/10"
+    >
       <h3 className="flex items-center gap-2 font-sans text-sm font-semibold">
         <HeartHandshake aria-hidden className="size-4 text-brand-magenta" />
         Talk to a person on the study team
       </h3>
-      <p className="mt-1 text-sm text-muted-foreground">They can help you find the right support. You could start with something like: &ldquo;{handoff.draft}&rdquo;</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        They can help you find the right support. You could start with something like: &ldquo;{handoff.draft}&rdquo;
+      </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {handoff.contactEmail ? (
           <Button asChild variant="outline" className="h-10 rounded-full px-4">
-            <a href={`mailto:${handoff.contactEmail}?subject=${encodeURIComponent("Question from the AI Coach")}&body=${encodeURIComponent(handoff.draft)}`}>
+            <a
+              href={`mailto:${handoff.contactEmail}?subject=${encodeURIComponent("Question from the AI Coach")}&body=${encodeURIComponent(handoff.draft)}`}
+            >
               <Mail aria-hidden /> Email the team
             </a>
           </Button>

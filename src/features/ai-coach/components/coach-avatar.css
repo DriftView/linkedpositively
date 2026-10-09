@@ -1,25 +1,8 @@
-/* AI Coach avatar motion. Subtle by design; all of it stops for prefers-reduced-motion. */
-
-@keyframes coach-breathe {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(1.5px);
-  }
-}
-
-@keyframes coach-blink {
-  0%,
-  92%,
-  100% {
-    transform: scaleY(1);
-  }
-  95% {
-    transform: scaleY(0.1);
-  }
-}
+/*
+ * AI Coach avatar. Breathing, blinks, glances, head motion and the mouth are
+ * driven from JS (coach-avatar.tsx); CSS handles the pulse ring and the
+ * thinking dots. Ring and dots stop for prefers-reduced-motion.
+ */
 
 @keyframes coach-ring {
   0% {
@@ -45,37 +28,14 @@
   }
 }
 
-.coach-avatar .coach-body {
-  animation: coach-breathe 4.5s ease-in-out infinite;
-  transform-box: fill-box;
+.coach-avatar .coach-head {
+  /* Rotates around the neck. */
+  transform-origin: 100px 140px;
 }
 
 .coach-avatar .coach-eyes {
-  animation: coach-blink 5.2s infinite;
   transform-box: fill-box;
   transform-origin: center;
-}
-
-.coach-avatar .coach-mouth-open {
-  transform-box: fill-box;
-  transform-origin: center top;
-  transition: transform 60ms linear;
-}
-
-.coach-avatar .coach-brows {
-  transition: transform 300ms ease;
-}
-
-.coach-avatar[data-state="listening"] .coach-brows {
-  transform: translateY(-2.5px);
-}
-
-.coach-avatar[data-state="thinking"] .coach-eyes-look {
-  transform: translate(2px, -2px);
-}
-
-.coach-avatar .coach-eyes-look {
-  transition: transform 400ms ease;
 }
 
 .coach-avatar .coach-ring {
@@ -102,8 +62,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .coach-avatar .coach-body,
-  .coach-avatar .coach-eyes,
   .coach-avatar .coach-ring,
   .coach-avatar .coach-dots circle {
     animation: none;

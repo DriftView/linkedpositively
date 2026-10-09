@@ -105,15 +105,56 @@ Each case below has a defined reply. The member always sees how to reach people,
 
 ## Voice and the animated coach
 
-- **Voice output:** ElevenLabs text-to-speech through `POST /api/ai/speech` (MP3, voice `ELEVENLABS_VOICE_ID`, model `ELEVENLABS_MODEL_ID`). Without a key, the browser's speech synthesis reads the reply.
-  - Replies to voice messages are always read aloud.
-  - Members can turn on "Read replies aloud" for everything.
-- **Voice input:** the browser records and ElevenLabs transcribes it (`POST /api/ai/transcribe`, `scribe_v1`; the audio is not stored). Without a key, the browser's own speech recognition is used where it exists. Voice messages are sent straight away.
-- **Avatar:** the in-house animated SVG coach (`components/coach-avatar.tsx`), with four looks (Amara, Jordan, Luis, Kai) chosen in settings.
-  - It breathes and blinks, and raises its brows while listening.
-  - It shows thinking dots, and its mouth follows the actual loudness of the ElevenLabs audio (Web Audio analyser).
-  - With browser voices, the mouth moves with each spoken word.
-  - Motion stops under `prefers-reduced-motion`.
+- **Spoken replies stream.** When a reply is to be heard, it is spoken sentence by sentence while it streams, not after it finishes. Replies are heard when:
+  - the member's message was a voice message;
+  - the member is in a hands-free voice chat;
+  - "Read replies aloud" is on.
+- **Server voice (ElevenLabs):**
+  - The chat request asks to `speak`. `speech-stream.ts` cuts the streamed text into sentences (`SpeechChunker` in `voice-lib.ts`), with a short first chunk so speech starts quickly.
+  - Each sentence goes to ElevenLabs `text-to-speech/{voice}/with-timestamps`, at most 2 requests at a time, with `previous_text` for natural intonation.
+  - The audio comes back as `speech` events, in order, before `done`.
+  - Up to 2,500 characters are spoken per reply. Speech stops if the member leaves the page; the turn itself still finishes and is saved.
+- **Browser voice fallback:** without ElevenLabs, or when a request fails, the browser's own speech synthesis reads each sentence. Once ElevenLabs fails during a reply, the browser reads the rest, so the voice doesn't switch back and forth.
+- **Replaying a reply:** `POST /api/ai/speech` reads a saved reply in the coach's voice. With `{ preview }` it reads a fixed sample sentence for the designer. It never voices arbitrary text.
+- **Playback** (`use-coach-voice.ts`): one Web Audio context, unlocked on the member's first tap, which also lets iOS play later chunks.
+- **Hands-free voice chat** (`use-hands-free.ts`, the voice chat button next to the mic):
+  - An open mic with voice activity detection (echo cancellation and noise suppression on). The member just talks; a 0.9 s pause ends their turn.
+  - With ElevenLabs, the recording is transcribed (`scribe_v1`, sound tags off). Otherwise, the browser's speech recognition is used.
+  - The words are sent, the coach speaks, then it listens again.
+  - **Interrupting:** talking over the coach for about a third of a second stops it, and so does "Stop talking". A message said while a reply is still arriving is sent once that turn is saved.
+  - **Captions** of the current sentence show above the conversation. The full reply is in the conversation as usual.
+  - **Controls:** Mute and End voice chat. The mic switches itself off after 90 s without speech.
+  - Usage: `ai_message` events carry `handsFree`.
+- **Push-to-talk:** the mic button still records one message and sends it.
+- **Avatar** (`components/coach-avatar.tsx`): an illustrated SVG character drawn from the member's design (no vendor, works offline). One animation loop drives:
+  - breathing, a slow head sway, blinks at irregular intervals, and small glances;
+  - looking up and aside while thinking, and nods while the member talks (mic loudness);
+  - brows that lift on loud syllables;
+  - a mouth that follows **visemes** (mouth shapes from ElevenLabs' per-character timing; estimated per word for browser voices) scaled by the voice's loudness.
+  - Under `prefers-reduced-motion`, idle motion stops and only the mouth moves.
+
+## Coach designer
+
+Members design their coach under Coach settings → "Design your coach" (also linked under the coach on desktop). The sheet has a live preview, and each voice can be heard.
+
+- **Start from** one of four looks: Amara, Jordan, Luis or Kai. Each look sets a name, pronouns, appearance and voice.
+- **Name** (up to 20 letters; letters, spaces, `' . -` only) and **pronouns** (she, he, they).
+- **Look:**
+  - skin tone (8);
+  - hair (11 styles, including hijab and bald) and hair color;
+  - facial hair, glasses, earrings;
+  - top and top color.
+- **Voice:** 8 vetted ElevenLabs default-library voices, labelled by sound ("Gentle, higher", "Deep and calm"…), not by gender. The ids are in `coach-design.ts` `COACH_VOICES`. Browser voices use a matching pitch.
+- **Style:** tone (warm, upbeat, calm, direct) and reply length (short, medium, detailed).
+
+How the design is used and stored:
+
+- **Fixed choices only.** There is no free-text persona, so a design can't talk the coach out of its rules.
+  - The name, pronouns, tone and length go into a short persona block after the cached system prompt (`buildPersona` in `prompt.ts`).
+  - The system prompt says the persona changes only how the coach sounds: safety comes first and it is still an AI coach.
+  - In a crisis the coach keeps it short, whatever the length setting.
+- **Storage:** `ai_preferences` (`coach_name`, `coach_pronouns`, `appearance` jsonb, `voice`, `tone`, `reply_length`; migration `0004_coach_designer`). Empty fields fall back to the chosen look.
+- **Usage events:** each save records an `ai_coach_designed` event with the choices (look, voice, tone, length, whether it was renamed or restyled). The name itself is never logged.
 
 ## Privacy (PRD §8)
 
@@ -139,7 +180,7 @@ Each case below has a defined reply. The member always sees how to reach people,
 - **Safety and people:** alerts, open alerts, hand-offs offered and sent.
 - **Volume:** messages per day, token use.
 
-New `usage_events` types: `ai_coach_view`, `ai_message`, `ai_voice_input`, `ai_voice_output`, `ai_resources_shown`, `ai_handoff_shown`, `ai_handoff_sent`, `ai_safety_flag`, `ai_feedback`, `ai_fallback`.
+New `usage_events` types: `ai_coach_view`, `ai_message` (with `voice` and `handsFree`), `ai_voice_input`, `ai_voice_output`, `ai_resources_shown`, `ai_handoff_shown`, `ai_handoff_sent`, `ai_safety_flag`, `ai_feedback`, `ai_fallback`, `ai_coach_designed`.
 
 The PRD's "60% response accuracy" target needs a study-team review sample. Reviewers can read conversations through alerts, or the team can add a sampled-review tool.
 
@@ -154,6 +195,8 @@ ELEVENLABS_API_KEY=...
 ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
 ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 ```
+
+Each member's coach voice comes from `COACH_VOICES` in `coach-design.ts`; `ELEVENLABS_VOICE_ID` is only a fallback. For the fastest spoken replies (hands-free chat), consider `ELEVENLABS_MODEL_ID=eleven_flash_v2_5`: it costs less and starts sooner, with slightly less expressive speech.
 
 Then:
 
@@ -171,6 +214,8 @@ Tests: `pnpm test` covers the keyword safety check, prompt and context building,
 3. Confirm the fallback wording and limits (40 messages an hour, 60 turns per conversation).
 4. Confirm retention: kept indefinitely for the study, hidden-not-deleted for members.
 5. Supported languages: English prompts. Claude will answer in the member's language, but approved content is English.
-6. Choose the ElevenLabs voice (and confirm a BAA or data terms if required). Accessibility review with members.
+6. Confirm the eight designer voices are available in the study's ElevenLabs account (and confirm a BAA or data terms if required). Accessibility review with members.
 7. Define accuracy measurement and "successful resolution" (the overview shows proxies).
 8. UAT and safety validation with real scenarios before launch (PRD §12). Run them against a non-production database.
+9. Coach designer and hands-free voice chat change what the intervention arm experiences. Confirm with the PI or IRB, and decide how the design choices (`ai_coach_designed`) enter the analysis.
+10. Hands-free voice chat keeps the mic open: confirm the in-app wording ("Your mic is on…") and the 90 s auto-off.

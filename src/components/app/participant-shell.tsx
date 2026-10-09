@@ -111,6 +111,11 @@ function RailLink({ item, active }: { item: NavItem; active: boolean }) {
       ) : null}
       <NavIcon name={item.icon} className={cn("relative size-[1.15rem]", active && "text-primary")} />
       <span className="relative">{item.label}</span>
+      {item.tag ? (
+        <span className="relative ml-auto rounded-full bg-primary/10 px-2 text-[0.65rem] leading-5 font-semibold text-primary">
+          {item.tag}
+        </span>
+      ) : null}
       {item.badge ? (
         <span className="relative ml-auto rounded-full bg-brand-magenta px-1.5 text-[0.7rem] leading-5 font-semibold text-white tabular-nums">
           {item.badge > 99 ? "99+" : item.badge}

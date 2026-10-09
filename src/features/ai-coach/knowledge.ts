@@ -35,25 +35,48 @@ export async function searchKnowledge(viewer: Viewer, query: string, limit = 6):
 
   const [tipRows, pageRows, glossaryRows, articleRows] = await Promise.all([
     db
-      .select({ id: tips.id, title: tips.title, text: tips.searchText, rank: sql<number>`ts_rank(${tips.searchVector}, ${tsq})`.mapWith(Number) })
+      .select({
+        id: tips.id,
+        title: tips.title,
+        text: tips.searchText,
+        rank: sql<number>`ts_rank(${tips.searchVector}, ${tsq})`.mapWith(Number),
+      })
       .from(tips)
       .where(and(eq(tips.published, true), sql`${tips.searchVector} @@ ${tsq}`))
       .orderBy(desc(sql`ts_rank(${tips.searchVector}, ${tsq})`))
       .limit(limit),
     db
-      .select({ id: pages.id, slug: pages.slug, title: pages.title, summary: pages.summary, html: pages.bodyHtml, rank: sql<number>`ts_rank(${pageVector}, ${tsq})`.mapWith(Number) })
+      .select({
+        id: pages.id,
+        slug: pages.slug,
+        title: pages.title,
+        summary: pages.summary,
+        html: pages.bodyHtml,
+        rank: sql<number>`ts_rank(${pageVector}, ${tsq})`.mapWith(Number),
+      })
       .from(pages)
       .where(and(eq(pages.status, "published"), eq(pages.audience, "everyone"), sql`${pageVector} @@ ${tsq}`))
       .orderBy(desc(sql`ts_rank(${pageVector}, ${tsq})`))
       .limit(limit),
     db
-      .select({ id: glossaryTerms.id, slug: glossaryTerms.slug, title: glossaryTerms.name, text: glossaryTerms.definitionText, rank: sql<number>`ts_rank(${glossaryVector}, ${tsq})`.mapWith(Number) })
+      .select({
+        id: glossaryTerms.id,
+        slug: glossaryTerms.slug,
+        title: glossaryTerms.name,
+        text: glossaryTerms.definitionText,
+        rank: sql<number>`ts_rank(${glossaryVector}, ${tsq})`.mapWith(Number),
+      })
       .from(glossaryTerms)
       .where(sql`${glossaryVector} @@ ${tsq}`)
       .orderBy(desc(sql`ts_rank(${glossaryVector}, ${tsq})`))
       .limit(limit),
     db
-      .select({ id: aiKnowledgeArticles.id, title: aiKnowledgeArticles.title, text: aiKnowledgeArticles.body, rank: sql<number>`ts_rank(${aiKnowledgeArticles.searchVector}, ${tsq})`.mapWith(Number) })
+      .select({
+        id: aiKnowledgeArticles.id,
+        title: aiKnowledgeArticles.title,
+        text: aiKnowledgeArticles.body,
+        rank: sql<number>`ts_rank(${aiKnowledgeArticles.searchVector}, ${tsq})`.mapWith(Number),
+      })
       .from(aiKnowledgeArticles)
       .where(and(eq(aiKnowledgeArticles.published, true), sql`${aiKnowledgeArticles.searchVector} @@ ${tsq}`))
       .orderBy(desc(sql`ts_rank(${aiKnowledgeArticles.searchVector}, ${tsq})`))
@@ -63,8 +86,22 @@ export async function searchKnowledge(viewer: Viewer, query: string, limit = 6):
   const lp = can(viewer, "lp.access");
   const hits: KnowledgeHit[] = [
     // Articles are written for the coach: rank them a little higher than general content.
-    ...articleRows.map((row) => ({ kind: "article" as const, id: row.id, title: row.title, text: row.text, href: null, rank: row.rank * 1.5 })),
-    ...tipRows.map((row) => ({ kind: "tip" as const, id: row.id, title: row.title, text: row.text, href: null, rank: row.rank })),
+    ...articleRows.map((row) => ({
+      kind: "article" as const,
+      id: row.id,
+      title: row.title,
+      text: row.text,
+      href: null,
+      rank: row.rank * 1.5,
+    })),
+    ...tipRows.map((row) => ({
+      kind: "tip" as const,
+      id: row.id,
+      title: row.title,
+      text: row.text,
+      href: null,
+      rank: row.rank,
+    })),
     ...pageRows.map((row) => ({
       kind: "page" as const,
       id: row.id,
@@ -73,7 +110,14 @@ export async function searchKnowledge(viewer: Viewer, query: string, limit = 6):
       href: lp ? `/pages/${row.slug}` : null,
       rank: row.rank,
     })),
-    ...glossaryRows.map((row) => ({ kind: "glossary" as const, id: row.id, title: row.title, text: row.text, href: lp ? `/glossary#${row.slug}` : null, rank: row.rank })),
+    ...glossaryRows.map((row) => ({
+      kind: "glossary" as const,
+      id: row.id,
+      title: row.title,
+      text: row.text,
+      href: lp ? `/glossary#${row.slug}` : null,
+      rank: row.rank,
+    })),
   ]
     .sort((a, b) => b.rank - a.rank)
     .slice(0, limit)

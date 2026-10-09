@@ -53,7 +53,12 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
       "Search Link Positively's approved content (Thrive Tips, help pages, the glossary and study-approved articles) about HIV, PrEP, PEP, testing, treatment, sexual health, mental health, trauma, substance use and wellness. Call this before answering any health question, and answer only from what it returns. Returns the best matching passages with titles.",
     input_schema: {
       type: "object",
-      properties: { query: { type: "string", description: "What to look up, in a few plain words, e.g. 'PEP 72 hours' or 'PrEP side effects'." } },
+      properties: {
+        query: {
+          type: "string",
+          description: "What to look up, in a few plain words, e.g. 'PEP 72 hours' or 'PrEP side effects'.",
+        },
+      },
       required: ["query"],
       additionalProperties: false,
     },
@@ -67,9 +72,19 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
     input_schema: {
       type: "object",
       properties: {
-        need: { type: "string", description: "One or two plain keywords for the service, e.g. 'HIV testing', 'PrEP', 'mental health', 'food'." },
-        location: { anyOf: [{ type: "string" }, { type: "null" }], description: "A city, ZIP code or campus the member named, or null." },
-        near_me: { anyOf: [{ type: "boolean" }, { type: "null" }], description: "True when the member wants places near where they are right now." },
+        need: {
+          type: "string",
+          description:
+            "One or two plain keywords for the service, e.g. 'HIV testing', 'PrEP', 'mental health', 'food'.",
+        },
+        location: {
+          anyOf: [{ type: "string" }, { type: "null" }],
+          description: "A city, ZIP code or campus the member named, or null.",
+        },
+        near_me: {
+          anyOf: [{ type: "boolean" }, { type: "null" }],
+          description: "True when the member wants places near where they are right now.",
+        },
       },
       required: ["need", "location", "near_me"],
       additionalProperties: false,
@@ -86,7 +101,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
       properties: {
         note: {
           type: "string",
-          description: "A short draft message in the member's own voice (first person, 1-3 sentences) saying what they'd like help with. No details they haven't shared.",
+          description:
+            "A short draft message in the member's own voice (first person, 1-3 sentences) saying what they'd like help with. No details they haven't shared.",
         },
       },
       required: ["note"],
@@ -140,22 +156,30 @@ export async function runTool(name: string, input: unknown, ctx: ToolContext): P
 }
 
 function invalid(error: z.ZodError): ToolOutcome {
-  return { content: `Invalid input: ${error.issues.map((issue) => `${issue.path.join(".")} ${issue.message}`).join("; ")}`, isError: true };
+  return {
+    content: `Invalid input: ${error.issues.map((issue) => `${issue.path.join(".")} ${issue.message}`).join("; ")}`,
+    isError: true,
+  };
 }
 
 async function searchKnowledgeTool(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
   const parsed = SearchKnowledgeInput.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const hits = await searchKnowledge(ctx.viewer, parsed.data.query);
-  if (!hits.length) return { content: "No approved content matched. Don't answer from general knowledge; offer a next step instead." };
+  if (!hits.length)
+    return { content: "No approved content matched. Don't answer from general knowledge; offer a next step instead." };
   const sources = ctx.cards.sources ?? [];
   for (const hit of hits) {
-    if (!sources.some((source) => source.kind === hit.kind && source.id === hit.id)) sources.push({ kind: hit.kind, id: hit.id, title: hit.title, href: hit.href });
+    if (!sources.some((source) => source.kind === hit.kind && source.id === hit.id))
+      sources.push({ kind: hit.kind, id: hit.id, title: hit.title, href: hit.href });
   }
   ctx.cards.sources = sources.slice(0, 8);
   return {
     content: hits
-      .map((hit, index) => `<result index="${index + 1}" type="${hit.kind}" title="${hit.title.replace(/"/g, "'")}">\n${hit.text}\n</result>`)
+      .map(
+        (hit, index) =>
+          `<result index="${index + 1}" type="${hit.kind}" title="${hit.title.replace(/"/g, "'")}">\n${hit.text}\n</result>`,
+      )
       .join("\n"),
   };
 }
@@ -173,14 +197,18 @@ async function findResourcesTool(input: unknown, ctx: ToolContext): Promise<Tool
       location = ctx.profileLocation;
       locationNote = `The member didn't share their device location, so this used the location on their profile (${ctx.profileLocation}). `;
     } else {
-      locationNote = "The member hasn't shared a location: results are not sorted by distance. Suggest they tap the location button or tell you a city or ZIP code. ";
+      locationNote =
+        "The member hasn't shared a location: results are not sorted by distance. Suggest they tap the location button or tell you a city or ZIP code. ";
     }
   }
 
   let result = await searchResources(ctx.viewer.id, { q: need, near, loc: location, radius: DEFAULT_RADIUS });
   if (!result.results.length) {
     // Try the most specific single word ("HIV testing" → "testing") before giving up.
-    const words = need.split(/\s+/).filter((word) => word.length > 2).sort((a, b) => b.length - a.length);
+    const words = need
+      .split(/\s+/)
+      .filter((word) => word.length > 2)
+      .sort((a, b) => b.length - a.length);
     for (const word of words) {
       result = await searchResources(ctx.viewer.id, { q: word, near, loc: location, radius: DEFAULT_RADIUS });
       if (result.results.length) break;
@@ -197,7 +225,9 @@ async function findResourcesTool(input: unknown, ctx: ToolContext): Promise<Tool
   ctx.cards.resources = top.map((resource) => ({
     id: resource.id,
     title: resource.title,
-    address: [resource.address, [resource.city, resource.state].filter(Boolean).join(", "), resource.zip].filter(Boolean).join(" "),
+    address: [resource.address, [resource.city, resource.state].filter(Boolean).join(", "), resource.zip]
+      .filter(Boolean)
+      .join(" "),
     phone: phoneHref(resource.contact)?.label ?? "",
     website: websiteHref(resource.website) ?? "",
     distanceMiles: resource.distanceMiles,
@@ -228,7 +258,14 @@ async function connectTool(input: unknown, ctx: ToolContext): Promise<ToolOutcom
   if (!parsed.success) return invalid(parsed.error);
   const canMessage = can(ctx.viewer, "peernav.messages") && ctx.navigator;
   ctx.cards.handoff = canMessage
-    ? { kind: "navigator", coachName: ctx.navigator!.name, draft: parsed.data.note, href: "/coaching/messages", contactEmail: null, contactPhone: null }
+    ? {
+        kind: "navigator",
+        coachName: ctx.navigator!.name,
+        draft: parsed.data.note,
+        href: "/coaching/messages",
+        contactEmail: null,
+        contactPhone: null,
+      }
     : {
         kind: "study_team",
         coachName: null,

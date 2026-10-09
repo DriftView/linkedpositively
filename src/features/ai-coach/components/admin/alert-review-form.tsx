@@ -38,7 +38,10 @@ export function AlertReviewForm({ id, status, staffNote }: { id: string; status:
               role="radio"
               aria-checked={nextStatus === value}
               onClick={() => setNextStatus(value)}
-              className={cn("h-8 rounded-md px-3 text-sm font-medium text-muted-foreground", nextStatus === value && "bg-card text-foreground shadow-soft")}
+              className={cn(
+                "h-8 rounded-md px-3 text-sm font-medium text-muted-foreground",
+                nextStatus === value && "bg-card text-foreground shadow-soft",
+              )}
             >
               {STATUS_LABEL[value]}
             </button>
@@ -55,7 +58,9 @@ export function AlertReviewForm({ id, status, staffNote }: { id: string; status:
           maxLength={4000}
           className="block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 dark:bg-input/30"
         />
-        <p className="text-xs text-muted-foreground">Visible to staff only. Recorded in the audit log (without the note text).</p>
+        <p className="text-xs text-muted-foreground">
+          Visible to staff only. Recorded in the audit log (without the note text).
+        </p>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? <Spinner /> : null}

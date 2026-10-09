@@ -33,10 +33,15 @@ Be careful: questions about these topics are not risk by themselves, and common 
 category: the best match, or "none" for level none. reason: one short neutral sentence for staff, without quoting the member.`;
 
 /** Rates the latest of `recentMessages` (oldest first). Never throws. */
-export async function classifyRisk(recentMessages: string[], options: { timeoutMs?: number } = {}): Promise<ClassifiedRisk | null> {
+export async function classifyRisk(
+  recentMessages: string[],
+  options: { timeoutMs?: number } = {},
+): Promise<ClassifiedRisk | null> {
   if (!aiConfigured() || !recentMessages.length) return null;
   const transcript = recentMessages
-    .map((text, index) => `<message${index === recentMessages.length - 1 ? ' latest="true"' : ""}>\n${text}\n</message>`)
+    .map(
+      (text, index) => `<message${index === recentMessages.length - 1 ? ' latest="true"' : ""}>\n${text}\n</message>`,
+    )
     .join("\n");
   try {
     const response = await claude().messages.parse(

@@ -6,7 +6,15 @@ import { EmailLayout, emailButton, emailText } from "@/server/emails/layout";
  * person. Deliberately carries no member name and no message content: staff
  * sign in to see the conversation.
  */
-export function SafetyAlertEmail({ url, level, studyName }: { url: string; level: "support" | "elevated" | "urgent"; studyName: string }) {
+export function SafetyAlertEmail({
+  url,
+  level,
+  studyName,
+}: {
+  url: string;
+  level: "support" | "elevated" | "urgent";
+  studyName: string;
+}) {
   const heading =
     level === "urgent"
       ? "An urgent AI Coach safety alert needs review now."
@@ -17,8 +25,8 @@ export function SafetyAlertEmail({ url, level, studyName }: { url: string; level
     <EmailLayout preview={heading}>
       <Text style={emailText}>{heading}</Text>
       <Text style={emailText}>
-        Sign in to {studyName} to see the conversation and follow your study&apos;s safety protocol. The member has been shown crisis
-        lines in the app where relevant.
+        Sign in to {studyName} to see the conversation and follow your study&apos;s safety protocol. The member has been
+        shown crisis lines in the app where relevant.
       </Text>
       <Button href={url} style={emailButton}>
         Review the alert

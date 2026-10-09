@@ -14,15 +14,21 @@ export async function POST(request: Request) {
   try {
     await assertPermission("ai.chat");
   } catch (error) {
-    return Response.json({ error: error instanceof AuthError ? error.message : "Please sign in again." }, { status: 403 });
+    return Response.json(
+      { error: error instanceof AuthError ? error.message : "Please sign in again." },
+      { status: 403 },
+    );
   }
   if (!(await getSettings()).aiVoiceEnabled) return Response.json({ error: "Voice is switched off." }, { status: 403 });
 
   const form = await request.formData().catch(() => null);
   const audio = form?.get("audio");
-  if (!(audio instanceof Blob) || !audio.size) return Response.json({ error: "No recording received." }, { status: 400 });
-  if (audio.size > MAX_AUDIO_BYTES) return Response.json({ error: "That recording is too long. Try a shorter message." }, { status: 413 });
-  if (audio.type && !/^(audio|video)\//.test(audio.type)) return Response.json({ error: "That isn't an audio recording." }, { status: 415 });
+  if (!(audio instanceof Blob) || !audio.size)
+    return Response.json({ error: "No recording received." }, { status: 400 });
+  if (audio.size > MAX_AUDIO_BYTES)
+    return Response.json({ error: "That recording is too long. Try a shorter message." }, { status: 413 });
+  if (audio.type && !/^(audio|video)\//.test(audio.type))
+    return Response.json({ error: "That isn't an audio recording." }, { status: 415 });
 
   const text = await transcribeSpeech(audio);
   if (text === null) return Response.json({ error: "Voice service unavailable." }, { status: 503 });

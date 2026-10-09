@@ -41,14 +41,36 @@ export const AI_RISK_LEVELS = ["none", "support", "elevated", "urgent"] as const
 export type AiRiskLevel = (typeof AI_RISK_LEVELS)[number];
 
 /** What a reply ended as: a normal answer, or one of the fallbacks (docs/AI_COACH.md "Fallbacks"). */
-export const AI_OUTCOMES = ["answered", "fallback_unavailable", "fallback_refusal", "fallback_error", "fallback_limit"] as const;
+export const AI_OUTCOMES = [
+  "answered",
+  "fallback_unavailable",
+  "fallback_refusal",
+  "fallback_error",
+  "fallback_limit",
+] as const;
 export type AiOutcome = (typeof AI_OUTCOMES)[number];
 
 /** Cards shown under an assistant reply (resources, sources, a navigator hand-off, crisis lines). */
 export type AiCards = {
-  resources?: { id: string; title: string; address: string; phone: string; website: string; distanceMiles: number | null; href: string | null; mapsHref: string | null }[];
+  resources?: {
+    id: string;
+    title: string;
+    address: string;
+    phone: string;
+    website: string;
+    distanceMiles: number | null;
+    href: string | null;
+    mapsHref: string | null;
+  }[];
   sources?: { kind: "tip" | "page" | "glossary" | "article"; id: string; title: string; href: string | null }[];
-  handoff?: { kind: "navigator" | "study_team"; coachName: string | null; draft: string; href: string | null; contactEmail: string | null; contactPhone: string | null };
+  handoff?: {
+    kind: "navigator" | "study_team";
+    coachName: string | null;
+    draft: string;
+    href: string | null;
+    contactEmail: string | null;
+    contactPhone: string | null;
+  };
   crisis?: { level: "elevated" | "urgent"; category: string };
 };
 
@@ -203,8 +225,77 @@ export const aiKnowledgeArticles = pgTable(
   ],
 );
 
+/** Starting looks for the coach (each one a preset appearance, name and voice). */
 export const AI_COACH_LOOKS = ["amara", "jordan", "luis", "kai"] as const;
 export type AiCoachLook = (typeof AI_COACH_LOOKS)[number];
+
+/**
+ * The coach a member designs. Every option is a fixed choice (no free-text
+ * persona), so a design can change how the coach looks and sounds, never
+ * what it is allowed to say. Labels and colors: features/ai-coach/coach-design.ts.
+ */
+export const AI_COACH_SKINS = ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"] as const;
+export const AI_COACH_HAIRS = [
+  "curls",
+  "afro",
+  "fade",
+  "buzz",
+  "waves",
+  "long",
+  "locs",
+  "bun",
+  "braids",
+  "hijab",
+  "bald",
+] as const;
+export const AI_COACH_HAIR_COLORS = [
+  "black",
+  "dark_brown",
+  "brown",
+  "auburn",
+  "blonde",
+  "gray",
+  "plum",
+  "teal",
+] as const;
+export const AI_COACH_FACIAL_HAIR = ["none", "stubble", "mustache", "beard"] as const;
+export const AI_COACH_GLASSES = ["none", "round", "square"] as const;
+export const AI_COACH_EARRINGS = ["none", "studs", "hoops"] as const;
+export const AI_COACH_OUTFITS = ["tee", "hoodie", "collar"] as const;
+export const AI_COACH_OUTFIT_COLORS = ["magenta", "sky", "apricot", "plum", "green", "charcoal"] as const;
+
+export type AiCoachAppearance = {
+  skin: (typeof AI_COACH_SKINS)[number];
+  hair: (typeof AI_COACH_HAIRS)[number];
+  hairColor: (typeof AI_COACH_HAIR_COLORS)[number];
+  facialHair: (typeof AI_COACH_FACIAL_HAIR)[number];
+  glasses: (typeof AI_COACH_GLASSES)[number];
+  earrings: (typeof AI_COACH_EARRINGS)[number];
+  outfit: (typeof AI_COACH_OUTFITS)[number];
+  outfitColor: (typeof AI_COACH_OUTFIT_COLORS)[number];
+};
+
+export const AI_COACH_PRONOUNS = ["she", "he", "they"] as const;
+export type AiCoachPronouns = (typeof AI_COACH_PRONOUNS)[number];
+
+/** Vetted ElevenLabs voices (ids in coach-design.ts). Stored by key so a voice can be remapped. */
+export const AI_COACH_VOICES = [
+  "gentle",
+  "lively",
+  "upbeat",
+  "relaxed",
+  "easygoing",
+  "warm",
+  "deep",
+  "british",
+] as const;
+export type AiCoachVoice = (typeof AI_COACH_VOICES)[number];
+
+export const AI_COACH_TONES = ["warm", "upbeat", "calm", "direct"] as const;
+export type AiCoachTone = (typeof AI_COACH_TONES)[number];
+
+export const AI_REPLY_LENGTHS = ["brief", "balanced", "detailed"] as const;
+export type AiReplyLength = (typeof AI_REPLY_LENGTHS)[number];
 
 /** A member's AI Coach preferences. No row = the defaults. */
 export const aiPreferences = pgTable(
@@ -217,10 +308,26 @@ export const aiPreferences = pgTable(
     personalize: boolean().notNull().default(true),
     /** Read replies aloud automatically. */
     autoSpeak: boolean().notNull().default(false),
+    /** The starting look. Fills in anything the member hasn't designed (name, appearance, voice). */
     look: text().$type<AiCoachLook>().notNull().default("amara"),
+    /** The member's name for the coach; null = the look's name. Letters, spaces, ' . - only. */
+    coachName: text(),
+    coachPronouns: text().$type<AiCoachPronouns>(),
+    /** Null = the look's appearance. Validated on write (schemas.ts appearanceSchema). */
+    appearance: jsonb().$type<AiCoachAppearance>(),
+    /** Null = the look's voice. */
+    voice: text().$type<AiCoachVoice>(),
+    tone: text().$type<AiCoachTone>().notNull().default("warm"),
+    replyLength: text().$type<AiReplyLength>().notNull().default("balanced"),
     ...timestamps(),
   },
-  (t) => [enumCheck("ai_preferences_look_ck", t.look, AI_COACH_LOOKS)],
+  (t) => [
+    enumCheck("ai_preferences_look_ck", t.look, AI_COACH_LOOKS),
+    enumCheck("ai_preferences_coach_pronouns_ck", t.coachPronouns, AI_COACH_PRONOUNS),
+    enumCheck("ai_preferences_voice_ck", t.voice, AI_COACH_VOICES),
+    enumCheck("ai_preferences_tone_ck", t.tone, AI_COACH_TONES),
+    enumCheck("ai_preferences_reply_length_ck", t.replyLength, AI_REPLY_LENGTHS),
+  ],
 );
 
 export type AiConversation = typeof aiConversations.$inferSelect;
