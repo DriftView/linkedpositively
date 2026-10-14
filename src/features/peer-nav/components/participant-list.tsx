@@ -160,7 +160,7 @@ export function ParticipantList({
                       </span>
                     </span>
                     {p.unread ? (
-                      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand-magenta px-1.5 text-[0.7rem] font-semibold text-primary-foreground tabular-nums">
+                      <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-brand-magenta px-1.5 text-[0.7rem] font-semibold text-primary-foreground tabular-nums">
                         <span className="sr-only">Unread messages: </span>
                         {p.unread}
                       </span>

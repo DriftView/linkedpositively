@@ -6,6 +6,7 @@ import type {
   AiCoachVoice,
   AiReplyLength,
   AI_COACH_EARRINGS,
+  AI_COACH_EYE_COLORS,
   AI_COACH_FACIAL_HAIR,
   AI_COACH_GLASSES,
   AI_COACH_HAIR_COLORS,
@@ -61,6 +62,7 @@ export const COACH_PRESETS: {
       skin: "t6",
       hair: "curls",
       hairColor: "black",
+      eyeColor: "dark_brown",
       facialHair: "none",
       glasses: "none",
       earrings: "hoops",
@@ -77,6 +79,7 @@ export const COACH_PRESETS: {
       skin: "t4",
       hair: "fade",
       hairColor: "dark_brown",
+      eyeColor: "brown",
       facialHair: "stubble",
       glasses: "none",
       earrings: "none",
@@ -93,6 +96,7 @@ export const COACH_PRESETS: {
       skin: "t3",
       hair: "waves",
       hairColor: "dark_brown",
+      eyeColor: "dark_brown",
       facialHair: "mustache",
       glasses: "square",
       earrings: "none",
@@ -109,6 +113,7 @@ export const COACH_PRESETS: {
       skin: "t2",
       hair: "locs",
       hairColor: "brown",
+      eyeColor: "hazel",
       facialHair: "none",
       glasses: "round",
       earrings: "studs",
@@ -187,6 +192,21 @@ export const HAIR_COLORS: Record<(typeof AI_COACH_HAIR_COLORS)[number], { label:
   plum: { label: "Plum", color: "#6b2d6b" },
   teal: { label: "Teal", color: "#1f7a7a" },
 };
+
+/** Eye colors: the iris's mid tone (its texture adds the pupil, fibers and a darker rim). */
+export const EYE_COLORS: Record<(typeof AI_COACH_EYE_COLORS)[number], { label: string; color: string }> = {
+  dark_brown: { label: "Dark brown", color: "#5a3420" },
+  brown: { label: "Brown", color: "#8a5630" },
+  hazel: { label: "Hazel", color: "#8f7a3c" },
+  green: { label: "Green", color: "#5f8a4a" },
+  blue: { label: "Blue", color: "#5b8fc4" },
+  gray: { label: "Gray", color: "#8a979f" },
+};
+
+/** The coach's eye color; designs saved before eye colors existed have dark brown eyes. */
+export function coachEyeColor(appearance: AiCoachAppearance) {
+  return EYE_COLORS[appearance.eyeColor ?? "dark_brown"].color;
+}
 
 export const FACIAL_HAIR: Option<(typeof AI_COACH_FACIAL_HAIR)[number]>[] = [
   { id: "none", label: "None" },

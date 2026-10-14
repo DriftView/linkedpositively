@@ -13,7 +13,7 @@ function Grid({ days, label }: { days: Day[]; label: string }) {
   const empty = days.filter((d) => !d.tips.some((t) => t.published)).length;
   return (
     <section aria-label={label} className="mt-6">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="text-lg font-semibold">{label}</h2>
         <p className="text-sm text-muted-foreground">
           {empty ? `${empty} ${empty === 1 ? "day has" : "days have"} no published tip` : "Every day has a tip"}
@@ -66,7 +66,7 @@ export default async function TipSchedulePage({ searchParams }: PageProps<"/admi
     <div>
       <PageHeader title="Thrive Tips" description="Which tips participants receive on each day of their study." />
       <AdminTipsNav />
-      <div className="inline-flex rounded-lg bg-muted p-1 text-sm" role="tablist" aria-label="Cycle">
+      <div className="inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1 text-sm" role="tablist" aria-label="Cycle">
         {[
           ["1", "Cycle 1 · days 1–90"],
           ["2", "Cycle 2 · days 91–180+"],
@@ -78,7 +78,7 @@ export default async function TipSchedulePage({ searchParams }: PageProps<"/admi
               role="tab"
               aria-selected={active}
               href={value === "2" ? "?cycle=2" : "?"}
-              className={cn("rounded-md px-3 py-1.5 font-medium transition", active ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground")}
+              className={cn("shrink-0 rounded-md px-3 py-1.5 font-medium whitespace-nowrap transition", active ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground")}
             >
               {label}
             </Link>

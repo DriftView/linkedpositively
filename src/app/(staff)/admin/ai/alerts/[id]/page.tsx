@@ -42,14 +42,14 @@ export default async function AiAlertPage(props: PageProps<"/admin/ai/alerts/[id
         description={`${CATEGORY_LABEL[alert.category]} · ${SOURCE_LABEL[alert.source]} · ${STATUS_LABEL[alert.status]} · raised ${formatInZone(alert.createdAt, "MMM d, h:mm a", viewer.timezone)}`}
       />
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <section aria-label="Conversation" className="rounded-2xl border bg-card shadow-soft">
+        <section aria-label="Conversation" className="min-w-0 rounded-2xl border bg-card shadow-soft">
           <h2 className="border-b px-4 py-3 font-sans text-sm font-semibold">Conversation</h2>
           <ol className="space-y-3 p-4">
             {alert.transcript.map((message) => (
               <li key={message.id} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
-                    "max-w-[88%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap",
+                    "max-w-[88%] rounded-2xl px-3.5 py-2 text-sm break-words whitespace-pre-wrap",
                     message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted/70",
                     message.id === alert.messageId && "ring-3 ring-destructive/60",
                   )}
@@ -65,7 +65,7 @@ export default async function AiAlertPage(props: PageProps<"/admin/ai/alerts/[id
             {alert.transcript.length === 0 ? <li className="text-sm text-muted-foreground">The conversation is no longer available.</li> : null}
           </ol>
         </section>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <section className="space-y-1 rounded-2xl border bg-card p-5 text-sm shadow-soft">
             <h2 className="mb-2 font-sans text-base font-semibold">Member</h2>
             <p>

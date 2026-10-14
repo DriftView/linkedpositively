@@ -23,7 +23,7 @@ export default async function ParticipantDetailsPage({ params }: PageProps<"/coa
 
   return (
     <div className="grid gap-6 @4xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <section className="@container rounded-2xl border bg-card p-5 shadow-soft">
+      <section className="@container rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold">Details</h2>
           {can(viewer, "peernav.editParticipant") ? (
@@ -54,7 +54,7 @@ export default async function ParticipantDetailsPage({ params }: PageProps<"/coa
       </section>
 
       <div className="grid gap-6 @2xl:max-@4xl:grid-cols-2 @4xl:content-start">
-        <section className="@container rounded-2xl border bg-card p-5 shadow-soft">
+        <section className="@container rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
           <h2 className="text-base font-semibold">Time on site</h2>
           <p className="mt-2 font-heading text-3xl font-semibold tabular-nums">{compactDuration(detail.timeOnSiteSeconds)}</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -67,7 +67,7 @@ export default async function ParticipantDetailsPage({ params }: PageProps<"/coa
           </dl>
         </section>
 
-        <section className="rounded-2xl border bg-card p-5 shadow-soft">
+        <section className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold">Coaching plan</h2>
             <Link href={`/coach/${participantId}/sessions`} className="rounded text-sm text-primary outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">

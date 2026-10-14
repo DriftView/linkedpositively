@@ -64,7 +64,7 @@ export function ProfileHero({
         <div className="min-w-0 flex-1 pb-1">
           <h1 className="truncate text-[1.7rem] leading-tight font-semibold sm:text-3xl">{name}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">@{username}</span>
+            <span className="min-w-0 text-sm break-all text-muted-foreground">@{username}</span>
             {tag ? (
               <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">{tag}</span>
             ) : null}

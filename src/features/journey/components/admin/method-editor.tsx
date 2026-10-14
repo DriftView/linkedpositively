@@ -147,7 +147,7 @@ function EditableText({
   }
   return (
     <div className="group flex min-w-0 flex-1 items-center gap-1">
-      <span className={bold ? "font-medium" : "text-sm"}>{value}</span>
+      <span className={`min-w-0 break-words ${bold ? "font-medium" : "text-sm"}`}>{value}</span>
       <Button
         variant="ghost"
         size="icon-xs"

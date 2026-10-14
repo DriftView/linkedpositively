@@ -38,17 +38,17 @@ export function SearchButton({ action = "/search" }: { action?: string }) {
         <Search className="size-5" />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="top-[18%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg" showCloseButton={false}>
+        <DialogContent className="top-3 translate-y-0 gap-0 overflow-hidden p-0 sm:top-[18%] sm:max-w-lg" showCloseButton={false}>
           <DialogTitle className="sr-only">Search</DialogTitle>
           <DialogDescription className="sr-only">Search posts, tips and resources</DialogDescription>
           <form onSubmit={submit} className="flex items-center gap-3 px-4">
-            <Search className="size-5 text-muted-foreground" aria-hidden />
+            <Search className="size-5 shrink-0 text-muted-foreground" aria-hidden />
             <input
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search posts, tips and resources…"
-              className="h-14 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+              className="h-14 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
               aria-label="Search"
               enterKeyHint="search"
             />

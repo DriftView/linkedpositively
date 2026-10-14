@@ -33,7 +33,7 @@ export default async function ParticipantTrackerPage({ params }: PageProps<"/coa
   const firstName = user.name.split(" ")[0] || "This participant";
 
   return (
-    <section className="rounded-2xl border bg-card p-5 shadow-soft">
+    <section className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
       <h2 className="text-base font-semibold">Daily check-ins</h2>
       <p className="mb-4 text-sm text-muted-foreground">
         {firstName}&apos;s medication and mood check-ins from Link Positively, shown in their time zone (

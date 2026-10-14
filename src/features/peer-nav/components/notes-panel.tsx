@@ -206,7 +206,7 @@ function NoteCard({ note, participantId, timezone, onDelete }: { note: NoteItem;
           </DropdownMenu>
         ) : null}
       </header>
-      <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">{note.text}</p>
+      <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{note.text}</p>
     </article>
   );
 }
@@ -256,7 +256,7 @@ function NoteForm({ participantId, note, onDone, onCancel }: { participantId: st
           }}
         />
       </div>
-      <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-wrap items-end gap-4 [&>*]:min-w-0 [&>*]:max-w-full">
         <div>
           <p id={`${idBase}-method`} className="mb-1.5 text-sm font-medium">
             Method of contact
@@ -268,7 +268,7 @@ function NoteForm({ participantId, note, onDone, onCancel }: { participantId: st
             Related session
           </label>
           <Select value={session} onValueChange={setSession}>
-            <SelectTrigger id={`${idBase}-session`} className="h-9 w-52">
+            <SelectTrigger id={`${idBase}-session`} className="h-9 w-52 max-w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

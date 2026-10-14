@@ -24,7 +24,7 @@ export default async function AdminJourneyPage() {
           </Button>
         }
       />
-      <dl className="mb-6 grid grid-cols-3 gap-3">
+      <dl className="mb-6 grid gap-3 sm:grid-cols-3">
         {[
           { label: "Members with goals", value: stats.members },
           { label: "Goals in progress or done", value: stats.goals },

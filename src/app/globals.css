@@ -211,7 +211,13 @@
 @layer components {
   /* Long-form content written by staff (tips, pages, glossary). */
   .prose-content {
-    @apply text-[0.975rem] leading-7 text-foreground/90;
+    @apply text-[0.975rem] leading-7 wrap-break-word text-foreground/90;
+  }
+  .prose-content :where(pre, table) {
+    @apply block max-w-full overflow-x-auto;
+  }
+  .prose-content :where(iframe, video) {
+    @apply max-w-full;
   }
   .prose-content :where(p, ul, ol, blockquote) {
     @apply my-3;

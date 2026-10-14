@@ -72,7 +72,7 @@ export function CrisisCard({ level }: { level: "elevated" | "urgent" }) {
       className="rounded-2xl border border-destructive/25 bg-destructive/5 p-4 dark:bg-destructive/10"
     >
       <h3 className="flex items-center gap-2 font-sans text-sm font-semibold text-destructive">
-        <LifeBuoy aria-hidden className="size-4" />
+        <LifeBuoy aria-hidden className="size-4 shrink-0" />
         {level === "urgent"
           ? "You don't have to go through this alone. Help is available right now."
           : "Support is here if you need it"}
@@ -110,7 +110,7 @@ export function ResourceCards({ resources }: { resources: NonNullable<AiCards["r
                 <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-brand-sky/15 text-brand-plum dark:text-brand-sky">
                   <MapPin aria-hidden className="size-4" />
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 wrap-break-word">
                   {resource.href ? (
                     <Link
                       href={resource.href}
@@ -167,13 +167,13 @@ const SOURCE_LABEL = {
 
 export function SourceList({ sources }: { sources: NonNullable<AiCards["sources"]> }) {
   return (
-    <section aria-label="Where this comes from" className="text-xs">
+    <section aria-label="Where this comes from" className="text-xs wrap-break-word">
       <p className="mb-1.5 flex items-center gap-1.5 font-medium text-muted-foreground">
         <BookOpen aria-hidden className="size-3.5" /> From Link Positively
       </p>
       <ul className="flex flex-wrap gap-1.5">
         {sources.map((source) => (
-          <li key={`${source.kind}-${source.id}`}>
+          <li key={`${source.kind}-${source.id}`} className="max-w-full">
             {source.href ? (
               <Link
                 href={source.href}
@@ -218,7 +218,7 @@ export function HandoffCard({ handoff }: { handoff: NonNullable<AiCards["handoff
         className="rounded-2xl border border-brand-magenta/25 bg-brand-magenta/5 p-4 dark:bg-brand-magenta/10"
       >
         <h3 className="flex items-center gap-2 font-sans text-sm font-semibold">
-          <HeartHandshake aria-hidden className="size-4 text-brand-magenta" />
+          <HeartHandshake aria-hidden className="size-4 shrink-0 text-brand-magenta" />
           Message {handoff.coachName ?? "your peer navigator"}
         </h3>
         {state === "sent" ? (
@@ -267,7 +267,7 @@ export function HandoffCard({ handoff }: { handoff: NonNullable<AiCards["handoff
       className="rounded-2xl border border-brand-magenta/25 bg-brand-magenta/5 p-4 dark:bg-brand-magenta/10"
     >
       <h3 className="flex items-center gap-2 font-sans text-sm font-semibold">
-        <HeartHandshake aria-hidden className="size-4 text-brand-magenta" />
+        <HeartHandshake aria-hidden className="size-4 shrink-0 text-brand-magenta" />
         Talk to a person on the study team
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">

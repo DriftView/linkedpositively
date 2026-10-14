@@ -101,7 +101,7 @@ export function SessionPlanEditor({ participantId, sessions, timezone }: { parti
         <p className="text-sm text-muted-foreground">
           Drag sessions to change their order. With a keyboard, focus a handle, press <kbd className="font-sans font-medium">Space</kbd>, then use the arrow keys.
         </p>
-        <span className={cn("flex items-center gap-1.5 text-xs text-muted-foreground transition-opacity", saving ? "opacity-100" : "opacity-0")} aria-hidden={!saving}>
+        <span className={cn("flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground transition-opacity", saving ? "opacity-100" : "opacity-0")} aria-hidden={!saving}>
           <Spinner className="size-3.5" /> Saving order
         </span>
       </div>
@@ -162,7 +162,7 @@ function SortableSession({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "group relative flex items-center gap-3 rounded-2xl border bg-card p-3 pr-4 shadow-soft transition-shadow",
+        "group relative flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-3 pr-4 shadow-soft transition-shadow sm:flex-nowrap",
         isDragging && "z-10 shadow-lift ring-2 ring-primary/30",
       )}
     >
@@ -185,7 +185,7 @@ function SortableSession({
       >
         {session.status === "complete" ? <Check className="size-4" strokeWidth={3} /> : position}
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 max-sm:basis-[calc(100%-6rem)]">
         <p className="text-xs text-muted-foreground">Session {session.serial}</p>
         <h3 className="truncate font-sans text-[0.95rem] font-semibold">{session.title}</h3>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -198,12 +198,12 @@ function SortableSession({
         </p>
       </div>
       {session.status === "not_started" ? (
-        <Button size="lg" onClick={onStart} disabled={starting} className="min-w-24">
+        <Button size="lg" onClick={onStart} disabled={starting} className="min-w-24 max-sm:w-full">
           {starting ? <Spinner /> : <Play aria-hidden />}
           Start
         </Button>
       ) : (
-        <Button asChild size="lg" variant={session.status === "complete" ? "outline" : "default"} className="min-w-24">
+        <Button asChild size="lg" variant={session.status === "complete" ? "outline" : "default"} className="min-w-24 max-sm:w-full">
           <Link href={href}>
             {label}
             {session.status === "complete" ? <Check aria-hidden /> : <ArrowRight aria-hidden />}

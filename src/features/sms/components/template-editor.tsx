@@ -242,7 +242,7 @@ function MessageEditor({
                 : "Add <link> to the message to include a link."}
             </FieldDescription>
           </Field>
-          <Field>
+          <Field className="min-w-0">
             <FieldLabel id="template-image-label">Picture (MMS)</FieldLabel>
             <MediaPicker value={draft.mediaPath} onChange={(value) => setDraft({ ...draft, mediaPath: value })} />
             <FieldDescription>Sent as a picture message. Leave empty for a plain text.</FieldDescription>
@@ -325,7 +325,7 @@ function MessageList({
       role="listbox"
       aria-label="Program messages"
       onKeyDown={onKeyDown}
-      className="max-h-[calc(100dvh-14rem)] overflow-y-auto rounded-2xl border bg-card p-1.5 shadow-soft lg:sticky lg:top-20"
+      className="max-h-72 overflow-y-auto rounded-2xl border bg-card p-1.5 shadow-soft lg:sticky lg:top-20 lg:max-h-[calc(100dvh-14rem)]"
     >
       {templates.map((row) => {
         const active = row.key === selectedKey;
@@ -388,8 +388,8 @@ function MediaPicker({ value, onChange }: { value: string; onChange: (value: str
         >
           {value ? (
             <>
-              <Image src={value} alt="" width={24} height={24} unoptimized className="size-6 rounded object-cover" />
-              {value.replace("/sms/", "")}
+              <Image src={value} alt="" width={24} height={24} unoptimized className="size-6 shrink-0 rounded object-cover" />
+              <span className="truncate">{value.replace("/sms/", "")}</span>
             </>
           ) : (
             <>
@@ -398,7 +398,7 @@ function MediaPicker({ value, onChange }: { value: string; onChange: (value: str
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[22rem] p-2">
+      <PopoverContent align="start" className="w-[min(22rem,calc(100vw-2rem))] p-2">
         <div className="grid max-h-80 grid-cols-4 gap-1.5 overflow-y-auto p-0.5">
           <button
             type="button"
@@ -491,7 +491,7 @@ function TestSend({ draft }: { draft: Draft }) {
           <Send /> Send a test
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
+      <PopoverContent align="start" className="w-[min(20rem,calc(100vw-2rem))]">
         <form
           className="space-y-3"
           onSubmit={async (event) => {

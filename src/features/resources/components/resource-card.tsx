@@ -85,7 +85,7 @@ export function ResourceCard({ resource, index = 0 }: { resource: ResourceCardDT
         ) : null}
         {website ? (
           <Detail icon={Globe} label="Website">
-            <a href={website} target="_blank" rel="noopener noreferrer" className="relative z-10 truncate font-medium text-primary hover:underline">
+            <a href={website} target="_blank" rel="noopener noreferrer" className="relative z-10 block truncate font-medium text-primary hover:underline">
               {websiteLabel(website)}
             </a>
           </Detail>

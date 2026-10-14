@@ -45,7 +45,7 @@ export function ResourceResults({ result, params }: { result: SearchResultDTO; p
               : "Our team is adding local services. Know a helpful place? Suggest it and we'll add it."}
           </EmptyDescription>
         </EmptyHeader>
-        <EmptyContent className="flex-row justify-center">
+        <EmptyContent className="flex-row flex-wrap justify-center">
           {filtered ? (
             <Button asChild variant="outline" className="h-10 rounded-full px-4">
               <Link href="/resources">Clear search</Link>

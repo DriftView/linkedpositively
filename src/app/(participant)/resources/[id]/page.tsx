@@ -71,7 +71,7 @@ export default async function ResourcePage(props: PageProps<"/resources/[id]">) 
       </Link>
 
       {resource.status !== "published" ? (
-        <p className="mb-4 flex items-center gap-2 rounded-2xl bg-warning/20 px-4 py-3 text-sm">
+        <p className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl bg-warning/20 px-4 py-3 text-sm">
           <Info aria-hidden className="size-4 shrink-0" />
           Only staff can see this page: the resource is {resource.status === "suggested" ? "a suggestion waiting for review" : "unpublished"}.
           <Link href={`/admin/content/resources/${resource.id}`} className="ml-auto font-semibold text-primary hover:underline">
@@ -98,7 +98,7 @@ export default async function ResourcePage(props: PageProps<"/resources/[id]">) 
                   ))}
                 </ul>
               ) : null}
-              <h1 className="text-2xl leading-tight font-semibold sm:text-3xl">{resource.title}</h1>
+              <h1 className="text-2xl leading-tight font-semibold break-words sm:text-3xl">{resource.title}</h1>
               {place ? <p className="mt-1.5 text-muted-foreground">{place}</p> : null}
             </div>
           </div>

@@ -55,7 +55,7 @@ export function Replies({ rows, timezone }: { rows: InboundRow[]; timezone: stri
         accessorFn: (row) => row.body,
         enableSorting: false,
         header: "Message",
-        cell: ({ row }) => <p className="max-w-xl text-sm whitespace-pre-wrap">{row.original.body || <span className="text-muted-foreground">(empty)</span>}</p>,
+        cell: ({ row }) => <p className="max-w-xl min-w-56 text-sm break-words whitespace-pre-wrap">{row.original.body || <span className="text-muted-foreground">(empty)</span>}</p>,
       },
       {
         id: "kind",

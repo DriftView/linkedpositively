@@ -265,12 +265,12 @@ function Conversation({ thread, routing, timezone }: { thread: ThreadDetail; rou
     messages.filter((m, i) => i === 0 || dayKey(m.createdAt, timezone) !== dayKey(messages[i - 1].createdAt, timezone)).map((m) => m.id),
   );
   return (
-    <div className="flex min-h-[28rem] flex-col">
+    <div className="flex flex-col sm:min-h-[28rem]">
       <div className="@3xl:hidden">
         <BackLink routing={routing} />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border bg-card shadow-soft">
-        <header className="flex items-center gap-3 border-b px-4 py-3">
+        <header className="flex items-center gap-3 border-b px-3 py-3 sm:px-4">
           {thread.other ? <UserAvatar userId={thread.other.id} name={thread.other.name} size="md" /> : null}
           <div className="min-w-0 flex-1">
             <h2 className="truncate font-sans text-[0.95rem] font-semibold">{thread.subject}</h2>
@@ -299,7 +299,7 @@ function Conversation({ thread, routing, timezone }: { thread: ThreadDetail; rou
           </AlertDialog>
         </header>
 
-        <div className="max-h-[60vh] min-h-64 flex-1 overflow-y-auto px-4 py-4" aria-live="polite" aria-label="Messages">
+        <div className="max-h-[min(60dvh,calc(100dvh-20rem))] min-h-48 flex-1 overflow-y-auto px-3 py-4 sm:min-h-64 sm:px-4 lg:max-h-[60dvh]" aria-live="polite" aria-label="Messages">
           {messages.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">No messages left in this conversation.</p> : null}
           <ol className="space-y-1.5">
             <AnimatePresence initial={false}>
@@ -328,7 +328,7 @@ function Conversation({ thread, routing, timezone }: { thread: ThreadDetail; rou
                     >
                       <div
                         className={cn(
-                          "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-xs",
+                          "min-w-0 max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere] shadow-xs",
                           message.mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted",
                           message.state === "sending" && "opacity-70",
                           message.state === "failed" && "bg-destructive/15 text-foreground ring-1 ring-destructive/40",
@@ -376,8 +376,8 @@ function Conversation({ thread, routing, timezone }: { thread: ThreadDetail; rou
         {thread.canReply ? (
           <Composer value={draft} onChange={setDraft} onSend={() => send(draft)} placeholder={`Reply to ${thread.other?.name.split(" ")[0] ?? "them"}`} />
         ) : (
-          <p className="flex items-center gap-2 border-t bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            <Lock aria-hidden className="size-4" />
+          <p className="flex items-start gap-2 border-t bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
             This conversation is closed because the peer navigator assignment changed.
           </p>
         )}
@@ -402,7 +402,7 @@ function Composer({ value, onChange, onSend, placeholder, pending }: { value: st
         placeholder={placeholder}
         minRows={1}
         maxLength={5000}
-        className="max-h-40 rounded-2xl"
+        className="max-h-40 rounded-2xl max-sm:text-base"
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey && !window.matchMedia("(pointer: coarse)").matches) {
             e.preventDefault();
@@ -455,12 +455,12 @@ function NewConversation({ compose, routing }: { compose: ComposeOptions; routin
       <div className="@3xl:hidden">
         <BackLink routing={routing} />
       </div>
-      <form onSubmit={submit} className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
+      <form onSubmit={submit} className="space-y-4 rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
         <h2 className="font-sans text-[0.95rem] font-semibold">New message</h2>
         {compose.kind === "fixed" ? (
           <div className="flex items-center gap-3 rounded-xl bg-muted/60 px-3 py-2.5">
             <UserAvatar userId={compose.recipient.id} name={compose.recipient.name} size="sm" />
-            <p className="text-sm">
+            <p className="min-w-0 text-sm [overflow-wrap:anywhere]">
               To <span className="font-medium">{compose.recipient.name}</span>
               {compose.recipientNote ? <span className="text-muted-foreground"> · {compose.recipientNote}</span> : null}
             </p>

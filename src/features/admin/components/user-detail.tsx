@@ -237,7 +237,7 @@ export function AccountForm({ user, canEdit }: { user: UserDetail; canEdit: bool
         </Field>
       </FieldGroup>
       {canEdit ? (
-        <div className="mt-5 flex items-center justify-end gap-2">
+        <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
           {dirty ? (
             <Button type="button" variant="ghost" onClick={() => setForm(initial)} disabled={pending}>
               Discard changes

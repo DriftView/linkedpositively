@@ -42,8 +42,8 @@ export function Segmented<T extends string>({
             key={option.value}
             value={option.value}
             className={cn(
-              "relative flex flex-1 items-center justify-center gap-1.5 rounded-full px-4 font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 sm:flex-none",
-              size === "sm" ? "h-8 px-3 text-[0.8rem]" : "h-10 text-sm",
+              "relative flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 font-medium whitespace-nowrap sm:px-4 text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 sm:flex-none",
+              size === "sm" ? "h-8 px-3 text-[0.8rem] sm:px-3" : "h-10 text-sm",
               active && "text-foreground",
             )}
           >
@@ -54,7 +54,7 @@ export function Segmented<T extends string>({
                 transition={{ type: "spring", stiffness: 520, damping: 38 }}
               />
             ) : null}
-            {option.icon ? <span className="relative [&_svg]:size-4">{option.icon}</span> : null}
+            {option.icon ? <span className="relative max-[359px]:hidden [&_svg]:size-4">{option.icon}</span> : null}
             <span className="relative">{option.label}</span>
           </ToggleGroupPrimitive.Item>
         );

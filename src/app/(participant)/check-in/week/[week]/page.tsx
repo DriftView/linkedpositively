@@ -28,66 +28,68 @@ export default async function CheckinWeekPage({ params }: PageProps<"/check-in/w
       </Link>
       <PageHeader title={`Week ${detail.week}`} description={weekRange(detail.start, detail.end)} />
 
-      <section aria-labelledby="days-heading" className="rounded-2xl border bg-card p-5 shadow-soft">
+      <section aria-labelledby="days-heading" className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
         <h2 id="days-heading" className="text-lg font-semibold">
           Your week
         </h2>
-        <table className="mt-3 w-full text-sm">
-          <thead>
-            <tr className="text-xs text-muted-foreground">
-              <th scope="col" className="pb-2 text-left font-medium">
-                Day
-              </th>
-              <th scope="col" className="pb-2 font-medium">
-                Meds
-              </th>
-              <th scope="col" className="pb-2 font-medium">
-                Mood
-              </th>
-              <th scope="col" className="pb-2 font-medium">
-                Used?
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {detail.days.map((day) => (
-              <tr key={day.date}>
-                <th scope="row" className="py-2.5 text-left font-normal">
-                  <span className="block font-medium">{day.weekday}</span>
-                  <span className="block text-xs text-muted-foreground">{day.label}</span>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted-foreground">
+                <th scope="col" className="pb-2 text-left font-medium">
+                  Day
                 </th>
-                <td className="py-2.5">
-                  <span className="flex justify-center">
-                    <MedsBadge value={day.medsTaken} />
-                  </span>
-                </td>
-                <td className="py-2.5">
-                  <span className="flex justify-center">
-                    {day.mood ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- small static SVG
-                      <img src={day.mood.src} alt={day.mood.label} title={day.mood.label} className="size-9" />
-                    ) : (
-                      <span className="flex size-9 items-center justify-center rounded-full border border-dashed text-muted-foreground" title="No mood logged">
-                        <Minus className="size-4" aria-hidden />
-                        <span className="sr-only">No mood logged</span>
-                      </span>
-                    )}
-                  </span>
-                </td>
-                <td className="py-2.5 text-center">
-                  <span
-                    className={cn(
-                      "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-                      day.used === true ? "bg-brand-magenta/10 text-brand-magenta dark:bg-brand-magenta/20" : "text-muted-foreground",
-                    )}
-                  >
-                    {day.used === true ? "Used" : day.used === false ? "No" : "—"}
-                  </span>
-                </td>
+                <th scope="col" className="pb-2 font-medium">
+                  Meds
+                </th>
+                <th scope="col" className="pb-2 font-medium">
+                  Mood
+                </th>
+                <th scope="col" className="pb-2 font-medium">
+                  Used?
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y">
+              {detail.days.map((day) => (
+                <tr key={day.date}>
+                  <th scope="row" className="py-2.5 text-left font-normal">
+                    <span className="block font-medium">{day.weekday}</span>
+                    <span className="block text-xs text-muted-foreground">{day.label}</span>
+                  </th>
+                  <td className="py-2.5">
+                    <span className="flex justify-center">
+                      <MedsBadge value={day.medsTaken} />
+                    </span>
+                  </td>
+                  <td className="py-2.5">
+                    <span className="flex justify-center">
+                      {day.mood ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- small static SVG
+                        <img src={day.mood.src} alt={day.mood.label} title={day.mood.label} className="size-9" />
+                      ) : (
+                        <span className="flex size-9 items-center justify-center rounded-full border border-dashed text-muted-foreground" title="No mood logged">
+                          <Minus className="size-4" aria-hidden />
+                          <span className="sr-only">No mood logged</span>
+                        </span>
+                      )}
+                    </span>
+                  </td>
+                  <td className="py-2.5 text-center">
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
+                        day.used === true ? "bg-brand-magenta/10 text-brand-magenta dark:bg-brand-magenta/20" : "text-muted-foreground",
+                      )}
+                    >
+                      {day.used === true ? "Used" : day.used === false ? "No" : "—"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {answered && detail.answer ? (

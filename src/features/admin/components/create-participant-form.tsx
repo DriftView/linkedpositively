@@ -136,7 +136,7 @@ export function CreateParticipantForm({ coaches, canRandomize }: { coaches: { id
 
   return (
     <form onSubmit={submit} noValidate className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <section className="rounded-2xl border bg-card p-5 shadow-soft sm:p-6">
           <FieldSet>
             <FieldLegend className="text-base font-semibold">Account</FieldLegend>

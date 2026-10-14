@@ -54,7 +54,7 @@ export default async function CheckinHistoryPage() {
                       {item.likertLabel ? ` · “${item.likertLabel}”` : ""}
                     </span>
                   </span>
-                  <ChevronRight className="size-5 text-muted-foreground transition group-hover:translate-x-0.5" aria-hidden />
+                  <ChevronRight className="size-5 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5" aria-hidden />
                 </Link>
               </li>
             );

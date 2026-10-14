@@ -67,7 +67,7 @@ export function TagPicker({
             <ChevronsUpDown className="opacity-60" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-(--radix-popover-trigger-width) min-w-72 p-0" align="start">
+        <PopoverContent className="w-(--radix-popover-trigger-width) min-w-[min(18rem,calc(100vw-2rem))] p-0" align="start">
           <Command>
             <CommandInput placeholder="Search or create a topic" value={search} onValueChange={setSearch} />
             <CommandList className="max-h-72">

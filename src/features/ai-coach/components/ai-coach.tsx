@@ -374,7 +374,7 @@ export function AiCoach(props: Props) {
       <Button
         variant="ghost"
         size="icon-lg"
-        className="size-10"
+        className="size-9 sm:size-10"
         aria-label="Your conversations"
         onClick={() => setSheet("history")}
       >
@@ -383,7 +383,7 @@ export function AiCoach(props: Props) {
       <Button
         variant="ghost"
         size="icon-lg"
-        className="size-10"
+        className="size-9 sm:size-10"
         aria-label="New conversation"
         onClick={() => router.push(props.basePath)}
         disabled={empty && !conversationId}
@@ -393,7 +393,7 @@ export function AiCoach(props: Props) {
       <Button
         variant="ghost"
         size="icon-lg"
-        className="size-10"
+        className="size-9 sm:size-10"
         aria-label="Coach settings"
         onClick={() => setSheet("settings")}
       >
@@ -403,7 +403,7 @@ export function AiCoach(props: Props) {
   );
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
+    <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
       {/* Coach stage (desktop) */}
       <aside className="hidden lg:block">
         <div className="sticky top-20 flex flex-col items-center rounded-2xl border bg-card p-5 text-center shadow-soft">
@@ -442,7 +442,7 @@ export function AiCoach(props: Props) {
         aria-label="Conversation with your AI coach"
         className="flex h-[calc(100dvh-12.5rem)] min-h-[26rem] flex-col overflow-hidden rounded-2xl border bg-card shadow-soft lg:h-[calc(100dvh-8.5rem)]"
       >
-        <header className="flex items-center gap-3 border-b px-3 py-2.5 lg:px-4">
+        <header className="flex items-center gap-2 border-b px-2.5 py-2.5 sm:gap-3 sm:px-3 lg:px-4">
           <div className="lg:hidden">
             <CoachAvatar
               appearance={coach.appearance}
@@ -451,6 +451,7 @@ export function AiCoach(props: Props) {
               face={voice.face}
               listen={handsFree.listenLevel}
               size={52}
+              className="max-[359px]:size-10!"
             />
           </div>
           <div className="min-w-0 flex-1">
@@ -466,7 +467,7 @@ export function AiCoach(props: Props) {
           <Button
             variant="ghost"
             size="icon-lg"
-            className="size-10 text-destructive lg:hidden"
+            className="size-9 text-destructive sm:size-10 lg:hidden"
             aria-label="Get help now"
             onClick={() => setSheet("help")}
           >
@@ -491,6 +492,7 @@ export function AiCoach(props: Props) {
                 face={voice.face}
                 listen={handsFree.listenLevel}
                 size={148}
+                className="[@media(max-height:42rem)]:size-24!"
               />
             </div>
             <p className="text-sm font-medium text-brand-plum dark:text-brand-sky">{statusLine}</p>
@@ -548,14 +550,14 @@ export function AiCoach(props: Props) {
             {messages.map((message) =>
               message.role === "user" ? (
                 <li key={message.id} className="flex justify-end">
-                  <p className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-[0.95rem] whitespace-pre-wrap text-primary-foreground">
+                  <p className="max-w-[85%] min-w-0 rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-[0.95rem] wrap-break-word whitespace-pre-wrap text-primary-foreground">
                     {message.text}
                   </p>
                 </li>
               ) : (
-                <li key={message.id} className="max-w-[92%] space-y-2.5">
+                <li key={message.id} className="max-w-[92%] min-w-0 space-y-2.5">
                   {message.cards?.crisis ? <CrisisCard level={message.cards.crisis.level} /> : null}
-                  <div className="rounded-2xl rounded-bl-md bg-muted/70 px-3.5 py-2.5 text-[0.95rem] leading-relaxed">
+                  <div className="rounded-2xl rounded-bl-md bg-muted/70 px-3.5 py-2.5 text-[0.95rem] leading-relaxed wrap-break-word">
                     {message.text ? (
                       <CoachMarkdown text={message.text} />
                     ) : (
@@ -622,15 +624,15 @@ export function AiCoach(props: Props) {
           <button
             type="button"
             onClick={() => setSheet("help")}
-            className="flex items-center justify-center gap-2 border-t bg-destructive/10 px-4 py-2 text-sm font-semibold text-destructive"
+            className="flex items-center justify-center gap-2 border-t bg-destructive/10 px-4 py-2 text-center text-sm font-semibold text-destructive"
           >
-            <LifeBuoy aria-hidden className="size-4" /> In danger? Call 911, or call or text 988
+            <LifeBuoy aria-hidden className="size-4 shrink-0" /> In danger? Call 911, or call or text 988
           </button>
         ) : null}
 
         {handsFree.active ? (
           <div className="border-t bg-background/60 p-3">
-            <div className="flex items-center justify-center gap-2.5">
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
               <Button
                 type="button"
                 variant={handsFree.muted ? "secondary" : "outline"}
@@ -674,8 +676,8 @@ export function AiCoach(props: Props) {
             }}
           >
             {near ? (
-              <p className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-brand-sky/15 px-2.5 py-1 text-xs font-medium">
-                <LocateFixed aria-hidden className="size-3.5" /> Using your location for nearby places
+              <p className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-brand-sky/15 px-2.5 py-1 text-xs font-medium">
+                <LocateFixed aria-hidden className="size-3.5 shrink-0" /> Using your location for nearby places
                 <button
                   type="button"
                   onClick={() => setNear(null)}
@@ -716,7 +718,7 @@ export function AiCoach(props: Props) {
                     void send(input);
                   }
                 }}
-                className="max-h-40 min-h-11 flex-1 rounded-2xl py-2.5 text-[0.95rem]"
+                className="max-h-40 min-h-11 min-w-0 flex-1 rounded-2xl py-2.5 text-base sm:text-[0.95rem]"
                 disabled={mic.state !== "idle"}
               />
               {props.voiceEnabled && mic.supported ? (

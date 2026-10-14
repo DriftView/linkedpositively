@@ -158,8 +158,8 @@ export function UsersTable({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={view} onValueChange={(value) => setParam("view", value, "all")}>
-          <TabsList>
+        <Tabs value={view} onValueChange={(value) => setParam("view", value, "all")} className="max-w-full">
+          <TabsList className="max-w-full justify-start overflow-x-auto">
             {USER_VIEWS.map((option) => (
               <TabsTrigger key={option.id} value={option.id} className="gap-1.5">
                 {option.label}

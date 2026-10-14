@@ -16,7 +16,7 @@ export function ImpersonationBanner({ name }: { name: string }) {
   return (
     <div
       role="status"
-      className="sticky top-0 z-50 flex min-h-11 flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-foreground px-4 py-1.5 text-sm text-background"
+      className="relative z-50 flex min-h-11 flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-foreground px-4 py-1.5 text-sm text-background"
     >
       <Eye className="size-4 shrink-0" aria-hidden />
       <span>

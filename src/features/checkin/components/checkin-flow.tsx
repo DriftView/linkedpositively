@@ -121,7 +121,7 @@ export function CheckinFlow({ week, days, prompt, answer, answered, canAnswer, n
             transition={{ duration: 0.22, ease: "easeOut" }}
           >
             {step === 0 ? (
-              <section aria-labelledby="checkin-step-0" className="rounded-2xl border bg-card p-5 shadow-soft">
+              <section aria-labelledby="checkin-step-0" className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
                 <h3 id="checkin-step-0" tabIndex={-1} className="text-xl font-semibold outline-none">
                   Your week at a glance
                 </h3>
@@ -148,7 +148,7 @@ export function CheckinFlow({ week, days, prompt, answer, answered, canAnswer, n
                 </p>
 
                 <div className="mt-4" role="table" aria-label={`Week ${week.week}`}>
-                  <div role="row" className="grid grid-cols-[1fr_4.5rem_3.5rem_5rem] items-center gap-2 px-2 pb-2 text-xs font-medium text-muted-foreground">
+                  <div role="row" className="grid grid-cols-[minmax(0,1fr)_2.5rem_2.5rem_4.5rem] items-center gap-1.5 px-1.5 sm:grid-cols-[1fr_4.5rem_3.5rem_5rem] sm:gap-2 sm:px-2 pb-2 text-xs font-medium text-muted-foreground">
                     <span role="columnheader">Day</span>
                     <span role="columnheader" className="text-center">
                       Meds
@@ -164,9 +164,9 @@ export function CheckinFlow({ week, days, prompt, answer, answered, canAnswer, n
                     {days.map((day) => {
                       const on = used[day.date] === true;
                       return (
-                        <li key={day.date} role="row" className="grid grid-cols-[1fr_4.5rem_3.5rem_5rem] items-center gap-2 px-2 py-2.5">
+                        <li key={day.date} role="row" className="grid grid-cols-[minmax(0,1fr)_2.5rem_2.5rem_4.5rem] items-center gap-1.5 px-1.5 sm:grid-cols-[1fr_4.5rem_3.5rem_5rem] sm:gap-2 sm:px-2 py-2.5">
                           <span role="rowheader" className="min-w-0 pl-1">
-                            <span className="block text-sm font-medium">{day.weekday}</span>
+                            <span className="block truncate text-sm font-medium">{day.weekday}</span>
                             <span className="block text-xs text-muted-foreground">{day.label}</span>
                           </span>
                           <span role="cell" className="flex justify-center">

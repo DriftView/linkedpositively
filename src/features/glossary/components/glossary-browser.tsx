@@ -99,7 +99,7 @@ export function GlossaryBrowser({ terms }: { terms: GlossaryTermDTO[] }) {
                   <div
                     key={term.id}
                     id={term.slug}
-                    className="scroll-mt-44 rounded-2xl border bg-card p-4 shadow-soft transition-shadow target:ring-3 target:ring-brand-magenta/40 sm:p-5"
+                    className="scroll-mt-44 rounded-2xl border bg-card p-4 break-words shadow-soft transition-shadow target:ring-3 target:ring-brand-magenta/40 sm:p-5"
                   >
                     <dt className="font-heading text-lg font-semibold">
                       <a href={`#${term.slug}`} className="hover:text-primary">

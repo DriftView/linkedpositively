@@ -55,7 +55,7 @@ export default async function InfoPage(props: PageProps<"/pages/[slug]">) {
       <article className="animate-rise overflow-hidden rounded-3xl border bg-card shadow-soft">
         <header className="bg-gradient-to-br from-secondary via-card to-card px-5 pt-7 pb-6 sm:px-9 sm:pt-9">
           <PageIcon slug={page.slug} className="size-12" />
-          <h1 className="mt-4 text-[1.85rem] leading-tight font-semibold sm:text-4xl">{page.title}</h1>
+          <h1 className="mt-4 text-[1.85rem] leading-tight font-semibold break-words sm:text-4xl">{page.title}</h1>
           {page.summary ? <p className="mt-2 text-lg text-muted-foreground">{page.summary}</p> : null}
         </header>
         <div className="px-5 pb-8 sm:px-9">
@@ -72,7 +72,7 @@ export default async function InfoPage(props: PageProps<"/pages/[slug]">) {
             </div>
           ) : null}
           {/* Stored HTML is sanitized with sanitizeStaffHtml when saved. */}
-          <div className="prose-content text-[1.02rem] leading-8" dangerouslySetInnerHTML={{ __html: page.bodyHtml }} />
+          <div className="prose-content text-[1.02rem] leading-8 break-words" dangerouslySetInnerHTML={{ __html: page.bodyHtml }} />
           <p className="mt-8 border-t pt-4 text-sm text-muted-foreground">Last updated {friendlyDate(page.updatedAt, viewer.timezone)}</p>
         </div>
       </article>

@@ -54,7 +54,7 @@ function SurveyActions({
   }
 
   return (
-    <div className={cn("flex flex-col gap-2", layout === "card" && "sm:flex-row sm:items-center")}>
+    <div className={cn("flex flex-col gap-2", layout === "card" && "sm:flex-row sm:flex-wrap sm:items-center")}>
       {survey.href ? (
         <Button asChild size="lg" className="h-11 rounded-full px-6 text-[0.95rem]">
           <a data-primary href={survey.href} target="_blank" rel="noopener" onClick={() => setTimeout(onDone, 300)}>
@@ -146,10 +146,10 @@ export function SurveyCard({ survey, timezone }: { survey: ParticipantSurvey; ti
   if (survey.completed) {
     return (
       <div className="flex items-center gap-4 rounded-2xl border bg-card p-5 shadow-soft">
-        <span className="flex size-11 items-center justify-center rounded-2xl bg-success/12 text-success">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-success/12 text-success">
           <CircleCheck className="size-5" aria-hidden />
         </span>
-        <div>
+        <div className="min-w-0">
           <p className="font-semibold">{survey.title}</p>
           <p className="text-sm text-muted-foreground">Done — thank you! Your answers help the study.</p>
         </div>

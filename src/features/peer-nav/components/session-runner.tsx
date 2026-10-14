@@ -211,12 +211,12 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2">
           <Link
             href={`/coach/${data.participant.id}/sessions`}
-            className="inline-flex items-center gap-1 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <ChevronLeft aria-hidden className="size-4" />
-            {data.participant.name}
+            <ChevronLeft aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{data.participant.name}</span>
           </Link>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-3">
             <SaveState dirty={dirty} saving={saving} savedAt={savedAt} timezone={timezone} />
             <Button variant="outline" size="lg" onClick={() => save(true)} disabled={saving} className="max-sm:hidden">
               {saving && closeAfterSave ? <Spinner /> : null}
@@ -237,7 +237,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
               <span>Session {data.serial} of 6</span>
               <StatusPill status={status} />
             </p>
-            <h1 className="text-2xl font-semibold sm:text-3xl">{session.title}</h1>
+            <h1 className="text-2xl font-semibold text-balance break-words sm:text-3xl">{session.title}</h1>
             <p className="text-sm text-muted-foreground">
               with <span className="font-medium text-foreground">{data.participant.name}</span>
               {data.participant.pronouns ? ` (${data.participant.pronouns})` : ""}
@@ -278,7 +278,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
           </AnimatePresence>
 
           {/* Start time */}
-          <section className="rounded-2xl border bg-card p-5 shadow-soft">
+          <section className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
             <TimeField
               id="start-time"
               label="Start time"
@@ -292,7 +292,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
           ))}
 
           {/* Wrap-up */}
-          <section id="wrap-up" aria-labelledby="wrap-up-title" className="scroll-mt-32 space-y-5 rounded-2xl border bg-card p-5 shadow-soft">
+          <section id="wrap-up" aria-labelledby="wrap-up-title" className="scroll-mt-32 space-y-5 rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
             <h2 id="wrap-up-title" className="font-sans text-[0.95rem] font-semibold">
               Wrap-up
             </h2>
@@ -330,7 +330,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
           </section>
 
           {/* Notes */}
-          <section id="notes" aria-labelledby="notes-title" className="scroll-mt-32 rounded-2xl border bg-card p-5 shadow-soft">
+          <section id="notes" aria-labelledby="notes-title" className="scroll-mt-32 rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
             <h2 id="notes-title" className="flex items-center gap-2 font-sans text-[0.95rem] font-semibold">
               <NotebookPen aria-hidden className="size-4 text-muted-foreground" />
               Notes
@@ -349,7 +349,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
                       ) : null}
                       {note.author ? <span>· {note.author.name}</span> : null}
                     </p>
-                    <p className="mt-1 text-sm whitespace-pre-wrap">{note.text}</p>
+                    <p className="mt-1 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">{note.text}</p>
                   </li>
                 ))}
               </ul>
@@ -389,7 +389,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
           {/* Completion */}
           <section
             className={cn(
-              "flex items-start gap-4 rounded-2xl border p-5 shadow-soft transition-colors duration-500",
+              "flex items-start gap-3 rounded-2xl border p-4 shadow-soft transition-colors duration-500 sm:gap-4 sm:p-5",
               complete ? "border-success/40 bg-success/8" : "bg-card",
             )}
           >
@@ -416,7 +416,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
           </section>
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 pb-10">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {prevSerial ? (
                 <Button asChild variant="ghost" size="lg">
                   <Link href={`/coach/${data.participant.id}/sessions/${prevSerial}`}>
@@ -434,7 +434,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
                 </Button>
               ) : null}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="lg" onClick={() => save(true)} disabled={saving}>
                 Save &amp; close
               </Button>
@@ -447,9 +447,9 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
         </div>
 
         {/* Outline rail */}
-        <aside className="max-xl:hidden">
-          <div className="sticky top-36 space-y-4">
-            <div className="rounded-2xl border bg-card p-4 shadow-soft">
+        <aside className="min-w-0">
+          <div className="space-y-4 xl:sticky xl:top-36">
+            <div className="rounded-2xl border bg-card p-4 shadow-soft max-xl:hidden">
               <div className="flex items-center gap-3">
                 <ProgressRing value={progress.done} total={progress.total} size={44} stroke={4}>
                   <span className="text-[0.7rem] font-semibold tabular-nums">{Math.round((progress.done / progress.total) * 100)}%</span>
@@ -506,7 +506,7 @@ export function SessionRunner({ data, timezone }: { data: RunnerData; timezone: 
                 </Button>
               }
             />
-            <p className="px-1 text-xs text-muted-foreground">
+            <p className="px-1 text-xs text-muted-foreground max-sm:hidden">
               <Kbd>Ctrl</Kbd> <Kbd>S</Kbd> saves. Unsaved changes are kept on this device.
             </p>
           </div>
@@ -539,8 +539,8 @@ function TimeField({ id, label, value, onChange }: { id: string; label: string; 
         <Clock aria-hidden className="size-4 text-muted-foreground" />
         {label}
       </label>
-      <div className="flex items-center gap-2">
-        <Input id={id} type={legacy ? "text" : "time"} value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-40" maxLength={40} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Input id={id} type={legacy ? "text" : "time"} value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-36 sm:w-40" maxLength={40} />
         <Button type="button" variant="ghost" size="lg" onClick={() => onChange(nowHHMM())}>
           Now
         </Button>

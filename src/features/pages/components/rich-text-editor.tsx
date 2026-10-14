@@ -224,7 +224,7 @@ function LinkTool({ editor, active }: { editor: Editor; active: boolean }) {
           <Link2 className="size-4" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
+      <PopoverContent align="start" className="w-[min(20rem,calc(100vw-2rem))]">
         <form onSubmit={apply} className="grid gap-2">
           <label htmlFor="rte-link" className="text-sm font-medium">
             Link address

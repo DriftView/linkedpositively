@@ -36,13 +36,13 @@ export default async function SessionReportPage() {
         <EmptyState icon={FileBarChart} title="No participants to report on yet" description="Participants appear here once they have Peer Navigation access." />
       ) : (
         <>
-          <dl className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-6">
+          <dl className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {CURRICULUM.map((s, i) => (
               <div key={s.serial} className="rounded-xl border bg-card px-3 py-2.5 shadow-soft">
                 <dt className="truncate text-xs text-muted-foreground" title={s.title}>
                   Session {s.serial}
                 </dt>
-                <dd className="mt-0.5 flex items-baseline gap-1">
+                <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-1">
                   <span className="font-heading text-xl font-semibold tabular-nums">{completeCounts[i]}</span>
                   <span className="text-xs text-muted-foreground">/ {rows.length} complete</span>
                 </dd>

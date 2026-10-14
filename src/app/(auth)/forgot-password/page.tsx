@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
         </span>
         <h1 className="text-3xl font-semibold">Check your email</h1>
         <p className="mt-3 leading-relaxed text-muted-foreground">
-          If an account matches <span className="font-medium text-foreground">{identifier}</span>, we&apos;ve sent a link to
+          If an account matches <span className="font-medium break-all text-foreground">{identifier}</span>, we&apos;ve sent a link to
           choose a new password. It can take a minute to arrive.
         </p>
         <Button asChild variant="outline" size="lg" className="mt-8 h-11 w-full rounded-xl">

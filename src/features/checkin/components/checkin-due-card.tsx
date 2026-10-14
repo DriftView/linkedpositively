@@ -24,7 +24,7 @@ export async function CheckinDueCard({ viewer, className }: { viewer: Viewer; cl
         <span className="block font-heading font-semibold">It&apos;s time for your weekly check-in!</span>
         <span className="block text-sm text-muted-foreground">Look back at week {due.week} — it takes about two minutes.</span>
       </span>
-      <ArrowRight className="size-5 text-primary transition group-hover:translate-x-0.5" aria-hidden />
+      <ArrowRight className="size-5 shrink-0 text-primary transition group-hover:translate-x-0.5" aria-hidden />
     </Link>
   );
 }

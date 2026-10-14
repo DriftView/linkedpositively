@@ -41,7 +41,7 @@ function TrackerRow({ tracker }: { tracker: TrackerSummary }) {
           </h3>
           <p className="mt-0.5 text-sm text-muted-foreground">{tracker.question}</p>
         </div>
-        <ChevronRight className="mt-1 size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+        <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">

@@ -109,7 +109,7 @@ export function NotificationCard({
         {eyebrow ? (
           <p className="mb-0.5 text-[0.7rem] font-bold tracking-wide text-brand-magenta uppercase">{eyebrow}</p>
         ) : null}
-        <p className="text-[0.925rem] leading-snug font-medium text-foreground">
+        <p className="text-[0.925rem] leading-snug font-medium break-words text-foreground">
           {item.href ? (
             <Link href={item.href} className="outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-3 focus-visible:after:ring-ring/50">
               {item.text}

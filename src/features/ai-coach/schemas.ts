@@ -3,6 +3,7 @@ import { uuidSchema } from "@/server/db/ids";
 import {
   AI_ALERT_STATUSES,
   AI_COACH_EARRINGS,
+  AI_COACH_EYE_COLORS,
   AI_COACH_FACIAL_HAIR,
   AI_COACH_GLASSES,
   AI_COACH_HAIR_COLORS,
@@ -57,6 +58,7 @@ export const appearanceSchema = z.object({
   skin: z.enum(AI_COACH_SKINS),
   hair: z.enum(AI_COACH_HAIRS),
   hairColor: z.enum(AI_COACH_HAIR_COLORS),
+  eyeColor: z.enum(AI_COACH_EYE_COLORS).optional(),
   facialHair: z.enum(AI_COACH_FACIAL_HAIR),
   glasses: z.enum(AI_COACH_GLASSES),
   earrings: z.enum(AI_COACH_EARRINGS),

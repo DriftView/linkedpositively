@@ -128,7 +128,7 @@ export function SendLog({ rows, canManage }: { rows: SendLogRow[]; canManage: bo
       columnClassNames={{ opened: "hidden md:table-cell", actions: "w-12 text-right" }}
       toolbar={
         <>
-          <ToggleGroup type="single" value={filter} onValueChange={(value) => value && setFilter(value as Filter)} variant="outline" size="sm" className="bg-card">
+          <ToggleGroup type="single" value={filter} onValueChange={(value) => value && setFilter(value as Filter)} variant="outline" size="sm" className="max-w-full overflow-x-auto bg-card">
             <ToggleGroupItem value="all">All {counts.all}</ToggleGroupItem>
             <ToggleGroupItem value="upcoming">Next 14 days {counts.upcoming}</ToggleGroupItem>
             <ToggleGroupItem value="sent">Sent {counts.sent}</ToggleGroupItem>

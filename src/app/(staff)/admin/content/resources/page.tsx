@@ -62,7 +62,7 @@ export default async function AdminResourcesPage(props: PageProps<"/admin/conten
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <nav aria-label="Resource status" className="inline-flex rounded-lg bg-muted p-1">
+        <nav aria-label="Resource status" className="inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1">
           {TABS.map((item) => {
             const count = counts[item.id];
             const attention = (item.id === "suggested" || item.id === "reported") && count > 0;
@@ -72,7 +72,7 @@ export default async function AdminResourcesPage(props: PageProps<"/admin/conten
                 href={href({ tab: item.id, q: undefined })}
                 aria-current={tab === item.id ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+                  "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
                   tab === item.id && "bg-card text-foreground shadow-soft",
                 )}
               >
@@ -118,7 +118,7 @@ export default async function AdminResourcesPage(props: PageProps<"/admin/conten
       {list.rows.length ? (
         <>
           <ResourcesTable rows={list.rows} tab={tab} />
-          <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
             <span>
               {list.total} {list.total === 1 ? "resource" : "resources"}
               {q ? ` matching “${q}”` : ""}

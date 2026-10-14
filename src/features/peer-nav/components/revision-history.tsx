@@ -105,7 +105,7 @@ export function RevisionHistory({
                 ].map(([label, value]) => (
                   <div key={label as string} className="rounded-lg bg-muted/60 px-2.5 py-1.5">
                     <dt className="text-xs text-muted-foreground">{label as string}</dt>
-                    <dd className="font-medium">{(value as string) || "—"}</dd>
+                    <dd className="font-medium [overflow-wrap:anywhere]">{(value as string) || "—"}</dd>
                   </div>
                 ))}
               </dl>

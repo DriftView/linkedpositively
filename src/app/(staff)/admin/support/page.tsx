@@ -33,7 +33,7 @@ export default async function AdminSupportPage(props: PageProps<"/admin/support"
         description="Requests members send from the Tech support page. Oldest first, so nobody waits too long."
         count={counts.open || undefined}
       />
-      <nav aria-label="Request status" className="mb-4 inline-flex rounded-lg bg-muted p-1">
+      <nav aria-label="Request status" className="mb-4 inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1">
         {TABS.map((item) => {
           const count = item.id === "all" ? total : counts[item.id];
           return (
@@ -42,7 +42,7 @@ export default async function AdminSupportPage(props: PageProps<"/admin/support"
               href={item.id === "open" ? "/admin/support" : `/admin/support?status=${item.id}`}
               aria-current={tab.id === item.id ? "page" : undefined}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground",
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground",
                 tab.id === item.id && "bg-card text-foreground shadow-soft",
               )}
             >
@@ -61,7 +61,7 @@ export default async function AdminSupportPage(props: PageProps<"/admin/support"
       </nav>
       <SupportQueue tickets={list.tickets} timezone={viewer.timezone} emptyLabel={tab.empty} />
       {list.pageCount > 1 ? (
-        <div className="mt-4 flex items-center justify-end gap-3 text-sm text-muted-foreground">
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-3 text-sm text-muted-foreground">
           {list.page > 1 ? (
             <Link href={pageHref(list.page - 1)} className="font-medium text-primary hover:underline">
               Previous

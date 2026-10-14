@@ -100,7 +100,7 @@ export function AboutMeCard({ initial }: { initial: string }) {
             key="view"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-[0.95rem] leading-relaxed whitespace-pre-line text-foreground/90"
+            className="text-[0.95rem] leading-relaxed break-words whitespace-pre-line text-foreground/90"
           >
             {value}
           </motion.p>

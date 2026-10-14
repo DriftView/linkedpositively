@@ -53,7 +53,7 @@ export default async function CheckinPromptsPage() {
                   </span>
                 )}
               </span>
-              <ChevronRight className="mt-3 size-4 text-muted-foreground transition group-hover:translate-x-0.5" />
+              <ChevronRight className="mt-3 size-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5" />
             </Link>
           </li>
         ))}

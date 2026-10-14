@@ -134,7 +134,7 @@ export function AssignmentBoard({
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <Select value={row.coach?.id ?? NONE} onValueChange={(value) => void change(row, value === NONE ? null : value)} disabled={busy === row.id}>
-                          <SelectTrigger className={cn("h-9 w-52", !row.coach && "text-muted-foreground")} aria-label={`Peer navigator for ${row.name}`}>
+                          <SelectTrigger className={cn("h-9 w-40 sm:w-52", !row.coach && "text-muted-foreground")} aria-label={`Peer navigator for ${row.name}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -164,12 +164,12 @@ export function AssignmentBoard({
         )}
       </section>
 
-      <aside className="rounded-2xl border bg-card p-5 shadow-soft xl:self-start">
+      <aside className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5 xl:self-start">
         <h2 className="text-base font-semibold">Recent changes</h2>
         {history.length ? (
           <ol className="mt-3 space-y-3">
             {history.map((event) => (
-              <li key={event.id} className="text-sm">
+              <li key={event.id} className="text-sm [overflow-wrap:anywhere]">
                 <p>
                   <span className="font-medium">{event.participant?.name ?? "A participant"}</span>
                   <span className="text-muted-foreground"> {event.previousCoach ? `${event.previousCoach.name} ` : ""}</span>

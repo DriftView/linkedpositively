@@ -216,7 +216,7 @@ function LinkButton({ editor, active }: { editor: Editor; active: boolean }) {
           <Link2 className="size-4" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-3">
+      <PopoverContent align="start" className="w-[min(20rem,calc(100vw-2rem))] p-3">
         <form onSubmit={apply} className="space-y-2">
           <label htmlFor="rte-link" className="text-sm font-medium">
             Link address

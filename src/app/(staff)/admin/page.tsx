@@ -28,7 +28,7 @@ export const metadata: Metadata = { title: "Dashboard" };
 function Panel({ title, action, children, className }: { title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-soft ${className ?? ""}`}>
-      <div className="flex items-center justify-between gap-2 border-b px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b px-5 py-3">
         <h2 className="text-base font-semibold">{title}</h2>
         {action}
       </div>
@@ -134,10 +134,10 @@ export default async function AdminDashboardPage() {
                     href={link.href}
                     className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                   >
-                    <span className="flex size-8 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
                       <link.icon className="size-4" aria-hidden />
                     </span>
-                    <span className="flex-1 font-medium">{link.label}</span>
+                    <span className="min-w-0 flex-1 font-medium">{link.label}</span>
                     <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </Link>
                 </li>

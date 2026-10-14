@@ -39,7 +39,7 @@ export default async function MyCoachPage() {
         <div className="relative h-24 bg-gradient-to-br from-brand-plum/25 via-brand-pink/25 to-brand-apricot/30 sm:h-28" aria-hidden />
         <div className="-mt-12 px-5 pb-6 sm:px-6">
           <UserAvatar userId={coach.id} name={coach.name} size="xl" version={coach.avatarVersion ?? undefined} className="ring-4 ring-card" />
-          <h2 className="mt-3 flex flex-wrap items-baseline gap-x-2 text-2xl font-semibold">
+          <h2 className="mt-3 flex flex-wrap items-baseline gap-x-2 text-2xl font-semibold [overflow-wrap:anywhere]">
             {coach.name}
             {coach.pronouns ? <span className="font-sans text-sm font-normal text-muted-foreground">{coach.pronouns}</span> : null}
           </h2>
@@ -64,7 +64,7 @@ export default async function MyCoachPage() {
           {coach.aboutMe ? (
             <section className="mt-5">
               <h3 className="font-sans text-xs font-semibold tracking-wide text-muted-foreground uppercase">About me</h3>
-              <p className="mt-1.5 text-[0.95rem] leading-relaxed whitespace-pre-line">{coach.aboutMe}</p>
+              <p className="mt-1.5 text-[0.95rem] leading-relaxed whitespace-pre-line [overflow-wrap:anywhere]">{coach.aboutMe}</p>
             </section>
           ) : null}
 

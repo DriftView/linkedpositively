@@ -85,14 +85,14 @@ export function ModerationQueue({
             layout
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_16rem_auto] lg:items-start"
+            className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_16rem_auto] lg:items-start"
           >
             <div className="flex min-w-0 gap-3">
               <UserAvatar userId={item.author.id} name={item.author.name} size="sm" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
                   <span className="font-semibold">{item.author.name}</span>
-                  {item.author.username ? <span className="text-muted-foreground">@{item.author.username}</span> : null}
+                  {item.author.username ? <span className="break-all text-muted-foreground">@{item.author.username}</span> : null}
                   <span className="text-muted-foreground">· {friendlyDate(item.createdAt)}</span>
                   {item.context ? <Badge variant="secondary">{item.context}</Badge> : null}
                 </div>

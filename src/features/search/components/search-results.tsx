@@ -57,7 +57,7 @@ function PostHitCard({ hit }: { hit: PostHit }) {
           {hit.headline}
         </p>
       ) : hit.excerpt.length ? (
-        <p className="mt-2.5 line-clamp-3 text-[0.95rem] leading-relaxed text-foreground/90">
+        <p className="mt-2.5 line-clamp-3 text-[0.95rem] leading-relaxed [overflow-wrap:anywhere] text-foreground/90">
           <Marked segments={hit.excerpt} />
         </p>
       ) : null}
@@ -106,7 +106,7 @@ function NoMatches({ q, what }: { q: string; what: string }) {
         <EmptyMedia variant="icon" className="size-11 rounded-full bg-secondary text-primary">
           <FileSearch className="size-5" />
         </EmptyMedia>
-        <EmptyTitle className="text-base">No {what} match &ldquo;{q}&rdquo;</EmptyTitle>
+        <EmptyTitle className="text-base [overflow-wrap:anywhere]">No {what} match &ldquo;{q}&rdquo;</EmptyTitle>
         <EmptyDescription>Try fewer or different words, or check the spelling.</EmptyDescription>
       </EmptyHeader>
     </Empty>
@@ -189,7 +189,7 @@ export function SearchResults({
           <EmptyMedia variant="icon" className="size-12 rounded-full bg-secondary text-primary">
             <FileSearch className="size-5" />
           </EmptyMedia>
-          <EmptyTitle className="text-base">Nothing matches &ldquo;{q}&rdquo;</EmptyTitle>
+          <EmptyTitle className="text-base [overflow-wrap:anywhere]">Nothing matches &ldquo;{q}&rdquo;</EmptyTitle>
           <EmptyDescription>Try fewer or different words. Searching for a hashtag? Start with #, like #selfcare.</EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -198,7 +198,7 @@ export function SearchResults({
 
   return (
     <div>
-      <p className="mb-3 text-sm text-muted-foreground" aria-live="polite">
+      <p className="mb-3 text-sm [overflow-wrap:anywhere] text-muted-foreground" aria-live="polite">
         <span className="font-semibold text-foreground tabular-nums">{total}</span> {total === 1 ? "result" : "results"} for
         &ldquo;{q}&rdquo;
       </p>

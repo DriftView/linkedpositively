@@ -29,8 +29,8 @@ export default async function SettingsPage() {
           className="group flex items-center gap-3 rounded-2xl bg-secondary px-4 py-3 text-sm text-secondary-foreground transition-colors hover:bg-accent"
         >
           <UserRound className="size-4 shrink-0 text-primary" aria-hidden />
-          <span className="flex-1">Looking for your avatar, badges or about me? They&apos;re on your profile.</span>
-          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          <span className="min-w-0 flex-1">Looking for your avatar, badges or about me? They&apos;re on your profile.</span>
+          <ArrowRight className="size-4 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden />
         </Link>
       ) : null}
 

@@ -31,9 +31,9 @@ export function ChecklistSectionCard({
   const total = section.items.length;
   return (
     <section id={sectionAnchor(index)} aria-labelledby={`${sectionAnchor(index)}-title`} className="scroll-mt-32 rounded-2xl border bg-card shadow-soft">
-      <header className="flex items-center gap-3 border-b px-5 py-3.5">
+      <header className="flex items-center gap-3 border-b px-4 py-3.5 sm:px-5">
         <span className="grid size-7 place-items-center rounded-lg bg-secondary font-heading text-xs font-semibold text-secondary-foreground">{index + 1}</span>
-        <h2 id={`${sectionAnchor(index)}-title`} className="flex-1 font-sans text-[0.95rem] font-semibold">
+        <h2 id={`${sectionAnchor(index)}-title`} className="min-w-0 flex-1 font-sans text-[0.95rem] font-semibold break-words">
           {sectionTitle(section.title)}
         </h2>
         <span className={cn("text-xs font-medium tabular-nums", done === total ? "text-success" : "text-muted-foreground")}>
@@ -45,7 +45,7 @@ export function ChecklistSectionCard({
           const checked = answers[item.key] === true;
           const id = `chk-${item.key}`;
           return (
-            <li key={item.key} className="px-5 py-3.5">
+            <li key={item.key} className="px-4 py-3.5 sm:px-5">
               <label htmlFor={id} className="group flex cursor-pointer items-start gap-3">
                 <input
                   id={id}
@@ -127,7 +127,7 @@ export function ReadOnlyChecklist({ sections, answers }: { sections: ChecklistSe
                     </span>
                   </span>
                   {texts.map((t) => (
-                    <p key={t.key} className="mt-1 ml-6 rounded-lg bg-muted/60 px-2.5 py-1.5 text-[0.8rem] whitespace-pre-wrap">
+                    <p key={t.key} className="mt-1 ml-6 rounded-lg bg-muted/60 px-2.5 py-1.5 text-[0.8rem] whitespace-pre-wrap [overflow-wrap:anywhere]">
                       {t.label ? <span className="block font-medium text-muted-foreground">{t.label}</span> : null}
                       {answers[t.key] as string}
                     </p>

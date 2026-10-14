@@ -175,7 +175,7 @@ export function PostPhoto({ photo, alt, compact }: { photo: PhotoDTO; alt: strin
           <DialogTitle className="sr-only">Photo</DialogTitle>
           <DialogDescription className="sr-only">{alt}</DialogDescription>
           {/* eslint-disable-next-line @next/next/no-img-element -- private, signed media */}
-          <img src={photo.url} alt={alt} className="max-h-[88dvh] w-auto rounded-2xl object-contain" />
+          <img src={photo.url} alt={alt} className="max-h-[88dvh] w-auto max-w-full rounded-2xl object-contain" />
         </DialogContent>
       </Dialog>
     </>

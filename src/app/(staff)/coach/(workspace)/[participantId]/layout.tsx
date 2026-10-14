@@ -45,11 +45,11 @@ export default async function ParticipantWorkspaceLayout({ children, params }: L
         <ChevronLeft aria-hidden className="size-4" />
         All participants
       </Link>
-      <header className="rounded-2xl border bg-card px-5 pt-5 shadow-soft">
+      <header className="rounded-2xl border bg-card px-4 pt-4 shadow-soft sm:px-5 sm:pt-5">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <UserAvatar userId={detail.id} name={detail.name} size="lg" version={detail.avatarVersion ?? undefined} />
           <div className="min-w-[12rem] flex-1">
-            <h1 className="flex flex-wrap items-baseline gap-x-2 text-2xl font-semibold">
+            <h1 className="flex flex-wrap items-baseline gap-x-2 text-2xl font-semibold [overflow-wrap:anywhere]">
               {detail.name}
               {detail.pronouns ? <span className="font-sans text-sm font-normal text-muted-foreground">{detail.pronouns}</span> : null}
             </h1>

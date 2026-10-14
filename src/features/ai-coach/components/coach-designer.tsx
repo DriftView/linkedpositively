@@ -16,6 +16,7 @@ import {
   COACH_VOICES,
   coachVoice,
   EARRINGS,
+  EYE_COLORS,
   FACIAL_HAIR,
   GLASSES,
   HAIR_COLORS,
@@ -78,7 +79,7 @@ function Choices<T extends string>({
               aria-checked={selected}
               onClick={() => onChange(option.id)}
               className={cn(
-                "min-h-9 rounded-full border px-3 py-1.5 text-left text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+                "min-h-9 max-w-full rounded-full border px-3 py-1.5 text-left text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
                 selected && "border-primary bg-secondary font-medium",
               )}
             >
@@ -156,7 +157,7 @@ export function CoachDesigner({
         onOpenChange(next);
       }}
     >
-      <SheetContent side="right" className="w-[min(28rem,96vw)] gap-0">
+      <SheetContent side="right" className="gap-0 data-[side=right]:w-[min(28rem,96vw)] data-[side=right]:sm:max-w-none">
         <SheetHeader>
           <SheetTitle>Design your coach</SheetTitle>
           <SheetDescription>
@@ -171,6 +172,7 @@ export function CoachDesigner({
             state={voice.speakingId ? "speaking" : "idle"}
             face={voice.face}
             size={112}
+            className="max-[359px]:size-20!"
           />
           <div className="min-w-0">
             <p className="truncate text-lg font-semibold">{coach.name}</p>
@@ -208,11 +210,11 @@ export function CoachDesigner({
                       }))
                     }
                     className={cn(
-                      "relative flex flex-col items-center gap-1 rounded-xl border p-1.5 text-xs transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "relative flex min-w-0 flex-col items-center gap-1 rounded-xl border p-1.5 text-xs wrap-anywhere transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
                       selected && "border-primary bg-secondary",
                     )}
                   >
-                    <CoachAvatar appearance={preset.appearance} name={preset.name} state="idle" size={56} still />
+                    <CoachAvatar appearance={preset.appearance} name={preset.name} state="idle" size={56} still className="h-auto max-w-full" />
                     {preset.name}
                     {selected ? <Check aria-hidden className="absolute top-1 right-1 size-3.5 text-primary" /> : null}
                   </button>
@@ -268,6 +270,16 @@ export function CoachDesigner({
               }))}
               value={coach.appearance.skin}
               onChange={(value) => setLook("skin", value)}
+            />
+            <Choices
+              legend="Eye color"
+              options={Object.entries(EYE_COLORS).map(([id, color]) => ({
+                id: id as NonNullable<AiCoachAppearance["eyeColor"]>,
+                label: color.label,
+                swatch: color.color,
+              }))}
+              value={coach.appearance.eyeColor ?? "dark_brown"}
+              onChange={(value) => setLook("eyeColor", value)}
             />
             <Choices
               legend="Hair"
@@ -343,9 +355,9 @@ export function CoachDesigner({
                         role="radio"
                         aria-checked={selected}
                         onClick={() => setDraft((current) => ({ ...current, voice: option.id }))}
-                        className="flex min-h-11 flex-1 items-center gap-2 rounded-xl px-3 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-3 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
-                        {selected ? <Check aria-hidden className="size-4 text-primary" /> : <span className="size-4" />}
+                        {selected ? <Check aria-hidden className="size-4 shrink-0 text-primary" /> : <span className="size-4 shrink-0" />}
                         {option.label}
                       </button>
                       <Button
@@ -393,7 +405,7 @@ export function CoachDesigner({
           </section>
         </div>
 
-        <SheetFooter className="flex-row items-center justify-between border-t px-4 py-3">
+        <SheetFooter className="flex-row flex-wrap items-center justify-between border-t px-4 py-3">
           <Button
             type="button"
             variant="ghost"

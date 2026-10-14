@@ -22,12 +22,12 @@ export function TipsNav() {
           const active = tab.href === "/tips" ? pathname === "/tips" : pathname.startsWith(tab.href);
           const Icon = tab.icon;
           return (
-            <li key={tab.href} className="flex-1 sm:flex-none">
+            <li key={tab.href} className="min-w-0 flex-1 sm:flex-none">
               <Link
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex h-10 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                  "relative flex h-10 items-center justify-center gap-1.5 rounded-full px-2 text-[0.8125rem] font-semibold min-[400px]:px-3 sm:px-4 sm:text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                   active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -38,7 +38,7 @@ export function TipsNav() {
                     transition={{ type: "spring", stiffness: 420, damping: 36 }}
                   />
                 ) : null}
-                <Icon className={cn("relative size-4", active && "text-primary")} aria-hidden />
+                <Icon className={cn("relative size-4 max-[439px]:hidden", active && "text-primary")} aria-hidden />
                 <span className="relative">{tab.label}</span>
               </Link>
             </li>

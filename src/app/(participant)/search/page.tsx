@@ -97,11 +97,11 @@ async function TagPage({ viewer, tag }: { viewer: Viewer; tag: string }) {
       <PageHeader
         className="mb-0"
         title={
-          <span className="inline-flex items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-xl bg-brand-magenta/10 text-brand-magenta dark:bg-brand-magenta/20">
+          <span className="inline-flex max-w-full items-center gap-2">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-magenta/10 text-brand-magenta dark:bg-brand-magenta/20">
               <Hash className="size-5" aria-hidden />
             </span>
-            {tag}
+            <span className="min-w-0 break-all">{tag}</span>
           </span>
         }
         description={count === 1 ? "1 post uses this hashtag." : `${count} posts use this hashtag.`}

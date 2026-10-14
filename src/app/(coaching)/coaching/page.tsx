@@ -67,7 +67,7 @@ export default async function CoachingPlansPage() {
           <Mail aria-hidden className="mt-0.5 size-4 shrink-0" />
           <span>
             Need to contact your eCoach to reschedule a session? We can be reached at{" "}
-            <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold underline underline-offset-4">
+            <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold underline underline-offset-4 [overflow-wrap:anywhere]">
               {CONTACT_EMAIL}
             </a>
             .
@@ -77,7 +77,7 @@ export default async function CoachingPlansPage() {
           <LifeBuoy aria-hidden className="mt-0.5 size-4 shrink-0" />
           <span>
             eCoaching is not meant to be a replacement for psychiatric or psychological services. If you are experiencing a psychiatric or medical emergency, please call{" "}
-            <a href="tel:911" className="font-semibold underline underline-offset-4">
+            <a href="tel:911" className="font-semibold underline underline-offset-4 [overflow-wrap:anywhere]">
               911
             </a>{" "}
             or go to the nearest emergency room.

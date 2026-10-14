@@ -174,7 +174,7 @@ function Bubble({
   return (
     <div
       className={cn(
-        "inline-block max-w-full rounded-2xl rounded-tl-md bg-muted/70 px-3.5 py-2 transition-shadow duration-700",
+        "inline-block max-w-full min-w-0 rounded-2xl rounded-tl-md bg-muted/70 px-3.5 py-2 transition-shadow duration-700",
         highlighted && "shadow-[0_0_0_3px_var(--ring)]",
         muted && "opacity-60",
       )}

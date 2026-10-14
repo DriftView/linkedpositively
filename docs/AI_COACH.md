@@ -126,11 +126,10 @@ Each case below has a defined reply. The member always sees how to reach people,
   - **Controls:** Mute and End voice chat. The mic switches itself off after 90 s without speech.
   - Usage: `ai_message` events carry `handsFree`.
 - **Push-to-talk:** the mic button still records one message and sends it.
-- **Avatar** (`components/coach-avatar.tsx`): an illustrated SVG character drawn from the member's design (no vendor, works offline). One animation loop drives:
-  - breathing, a slow head sway, blinks at irregular intervals, and small glances;
-  - looking up and aside while thinking, and nods while the member talks (mic loudness);
-  - brows that lift on loud syllables;
-  - a mouth that follows **visemes** (mouth shapes from ElevenLabs' per-character timing; estimated per word for browser voices) scaled by the voice's loudness.
+- **Avatar** (`components/coach-avatar.tsx`): the coach drawn from the member's design (no vendor, no model files, works offline).
+  - **3D** for large live avatars (the coach stage, voice chat, the empty conversation, the designer preview): a three.js character modeled in code (`coach-avatar-3d.ts`) and lit like a studio portrait (soft key, gentle fill, rim highlights), with skin, hair and fabric surfaces that vary slightly, so every option in the designer has a 3D form. three.js is loaded on demand. A WebGL context exists only while that copy is laid out (the page renders one per layout), and frames are skipped while it's offscreen. Outfit colors follow the light/dark theme.
+  - **SVG** for small and still avatars (chat header, thumbnails), while 3D loads, and as the fallback when WebGL isn't available or its context is lost.
+  - Both move the same way (`coach-motion.ts`): breathing, a slow head sway, blinks at irregular intervals, and small glances; looking up and aside while thinking, and nods while the member talks (mic loudness); brows that lift on loud syllables; a mouth that follows **visemes** (mouth shapes from ElevenLabs' per-character timing; estimated per word for browser voices) scaled by the voice's loudness. Blinks close fast and open slower, and the head makes small, slow turns that the eyes lead. In 3D the coach is framed head and shoulders from a slight angle, its body turned a little away and its head turned back toward the camera.
   - Under `prefers-reduced-motion`, idle motion stops and only the mouth moves.
 
 ## Coach designer
@@ -140,7 +139,7 @@ Members design their coach under Coach settings → "Design your coach" (also li
 - **Start from** one of four looks: Amara, Jordan, Luis or Kai. Each look sets a name, pronouns, appearance and voice.
 - **Name** (up to 20 letters; letters, spaces, `' . -` only) and **pronouns** (she, he, they).
 - **Look:**
-  - skin tone (8);
+  - skin tone (8) and eye color (6; designs saved before eye colors existed show dark brown);
   - hair (11 styles, including hijab and bald) and hair color;
   - facial hair, glasses, earrings;
   - top and top color.

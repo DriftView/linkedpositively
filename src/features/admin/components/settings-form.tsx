@@ -192,7 +192,7 @@ export function SettingsForm({
       </Section>
 
       <div className={`fixed inset-x-0 bottom-0 z-30 transition-transform duration-200 md:left-(--sidebar-width) ${dirty ? "translate-y-0" : "invisible translate-y-full"}`} aria-hidden={!dirty}>
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 rounded-t-2xl border border-b-0 bg-popover/95 px-5 py-3 shadow-lift backdrop-blur">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-t-2xl border border-b-0 bg-popover/95 px-5 py-3 shadow-lift backdrop-blur">
           <span className="text-sm">You have unsaved changes</span>
           <div className="flex gap-2">
             <Button

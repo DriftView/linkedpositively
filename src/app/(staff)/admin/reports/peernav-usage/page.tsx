@@ -76,7 +76,7 @@ export default async function PeerNavUsageReportPage({ searchParams }: PageProps
               </tbody>
             </table>
           </div>
-          <nav aria-label="Pages" className="flex items-center justify-between gap-3 border-t px-4 py-3 text-sm">
+          <nav aria-label="Pages" className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
             <span className="text-muted-foreground tabular-nums">
               {first}–{last} of {report.total}
             </span>

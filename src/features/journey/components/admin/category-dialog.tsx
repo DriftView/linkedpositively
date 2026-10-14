@@ -67,7 +67,7 @@ export function CategoryDialog({ initial, trigger, onSaved }: { initial?: Values
             </div>
             <fieldset className="grid gap-2">
               <legend className="mb-1 text-sm font-medium">Colour</legend>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {(Object.keys(ACCENTS) as Accent[]).map((accent) => (
                   <button
                     key={accent}

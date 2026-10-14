@@ -53,7 +53,7 @@ export function HistorySheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-[min(22rem,92vw)]">
+      <SheetContent side="left" className="data-[side=left]:w-[min(22rem,92vw)] data-[side=left]:sm:max-w-none">
         <SheetHeader>
           <SheetTitle>Your conversations</SheetTitle>
           <SheetDescription>
@@ -154,19 +154,19 @@ export function SettingsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[min(24rem,92vw)]">
+      <SheetContent side="right" className="data-[side=right]:w-[min(24rem,92vw)] data-[side=right]:sm:max-w-none">
         <SheetHeader>
           <SheetTitle>Coach settings</SheetTitle>
           <SheetDescription>Make the coach yours.</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 pb-6">
-          <div className="flex items-center gap-3 rounded-xl border p-3">
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border p-3">
             <CoachAvatar appearance={coach.appearance} name={coach.name} state="idle" size={64} still />
-            <div className="min-w-0 flex-1">
+            <div className="min-w-16 flex-1">
               <p className="truncate font-semibold">{coach.name}</p>
               <p className="text-xs text-muted-foreground">Your AI coach</p>
             </div>
-            <Button variant="outline" className="h-10 rounded-full" onClick={onDesign}>
+            <Button variant="outline" className="h-10 rounded-full max-[359px]:w-full" onClick={onDesign}>
               <Palette aria-hidden /> Design your coach
             </Button>
           </div>

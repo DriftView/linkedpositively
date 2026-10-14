@@ -24,7 +24,7 @@ export function TrackerTabs() {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex h-10 flex-1 items-center justify-center rounded-full px-2 text-[0.85rem] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-sm",
+              "relative flex h-10 min-w-0 flex-1 items-center justify-center rounded-full px-2 text-center text-[0.85rem] leading-tight font-medium min-[400px]:whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-sm",
               active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >

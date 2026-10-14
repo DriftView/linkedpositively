@@ -30,7 +30,7 @@ export default async function CoachDashboardPage() {
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="rounded-2xl border bg-card p-6 shadow-soft">
+      <div className="rounded-2xl border bg-card p-4 shadow-soft sm:p-6">
         <p className="text-sm text-muted-foreground">
           {greeting(viewer.timezone)}, {firstName}
         </p>
@@ -42,7 +42,7 @@ export default async function CoachDashboardPage() {
             { label: "Finished all 6", value: finished },
             { label: "Unread conversations", value: unread.length },
           ].map((stat) => (
-            <div key={stat.label} className="rounded-xl bg-muted/60 px-4 py-3">
+            <div key={stat.label} className="rounded-xl bg-muted/60 px-3 py-3 sm:px-4">
               <dt className="text-xs text-muted-foreground">{stat.label}</dt>
               <dd className="mt-0.5 font-heading text-2xl font-semibold tabular-nums">{stat.value}</dd>
             </div>
@@ -58,7 +58,7 @@ export default async function CoachDashboardPage() {
         />
       ) : (
         <div className="grid gap-6 xl:grid-cols-2">
-          <section className="rounded-2xl border bg-card p-5 shadow-soft">
+          <section className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
             <h2 className="text-base font-semibold">Pick up where you left off</h2>
             <p className="text-sm text-muted-foreground">Sessions that are started but not complete.</p>
             {inProgress.length ? (
@@ -90,7 +90,7 @@ export default async function CoachDashboardPage() {
             )}
           </section>
 
-          <section className="rounded-2xl border bg-card p-5 shadow-soft">
+          <section className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
             <h2 className="text-base font-semibold">Waiting for a reply</h2>
             <p className="text-sm text-muted-foreground">Participants with unread messages.</p>
             {unread.length ? (
@@ -103,7 +103,7 @@ export default async function CoachDashboardPage() {
                     >
                       <UserAvatar userId={p.id} name={p.name} size="sm" />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.name}</span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-brand-magenta/10 px-2 py-0.5 text-xs font-semibold text-brand-magenta">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-magenta/10 px-2 py-0.5 text-xs font-semibold text-brand-magenta">
                         <MessageCircle aria-hidden className="size-3.5" />
                         {p.unread} new
                       </span>
@@ -116,7 +116,7 @@ export default async function CoachDashboardPage() {
             )}
           </section>
 
-          <section className="rounded-2xl border bg-card p-5 shadow-soft xl:col-span-2">
+          <section className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5 xl:col-span-2">
             <h2 className="text-base font-semibold">Progress at a glance</h2>
             <ul className="mt-4 grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
               {participants.map((p) => (

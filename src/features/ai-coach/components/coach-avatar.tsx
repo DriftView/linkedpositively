@@ -1,37 +1,15 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { AiCoachAppearance } from "@/server/db/schema/ai";
 import { cn } from "@/lib/utils";
-import { HAIR_COLORS, OUTFIT_COLORS, SKIN_TONES } from "../coach-design";
-import type { Viseme } from "../voice-lib";
+import { coachEyeColor, HAIR_COLORS, OUTFIT_COLORS, SKIN_TONES } from "../coach-design";
+import type { CoachScene } from "./coach-avatar-3d";
+import { createCoachMotion, MOUTH, type CoachFace, type CoachState } from "./coach-motion";
 import "./coach-avatar.css";
 
-export type CoachState = "idle" | "listening" | "thinking" | "speaking";
+export { newFace, type CoachFace, type CoachState } from "./coach-motion";
 
-/**
- * What the voice tells the face, written every frame by the voice player
- * (never through React state):
- * `level` is the loudness of the coach's voice (0–1), `viseme` its current
- * mouth shape.
- */
-export type CoachFace = { level: number; viseme: Viseme };
-
-export function newFace(): CoachFace {
-  return { level: 0, viseme: "rest" };
-}
-
-/** Mouth shapes: half width, upper lip lift and lower lip drop, in SVG units. */
-const MOUTH: Record<Viseme, [number, number, number]> = {
-  rest: [13, 0, 0],
-  A: [12, 4, 13],
-  E: [15, 2.5, 7],
-  O: [8, 5, 10],
-  U: [6, 3, 5],
-  M: [13, 0, 0.4],
-  F: [13, 1.5, 4],
-  L: [12, 2.5, 7],
-};
 const MOUTH_X = 100;
 const MOUTH_Y = 119;
 
@@ -42,26 +20,7 @@ function mouthPath(w: number, up: number, down: number) {
   return `M${x0.toFixed(1)} ${y}C${(MOUTH_X - w * 0.6).toFixed(1)} ${(y - up).toFixed(1)} ${(MOUTH_X + w * 0.6).toFixed(1)} ${(y - up).toFixed(1)} ${x1.toFixed(1)} ${y}C${(MOUTH_X + w * 0.6).toFixed(1)} ${(y + down).toFixed(1)} ${(MOUTH_X - w * 0.6).toFixed(1)} ${(y + down).toFixed(1)} ${x0.toFixed(1)} ${y}Z`;
 }
 
-const random = (min: number, max: number) => min + Math.random() * (max - min);
-
-/**
- * The animated AI Coach: an illustrated character in SVG, drawn from the
- * member's design (no vendor, works offline). One animation loop moves it:
- * breathing, a slow head sway, natural blinks and glances, nods while the
- * member talks, brows that lift with emphasis, and a mouth that follows the
- * voice's visemes and loudness. Idle motion stops under prefers-reduced-motion;
- * the mouth still follows speech. `still` draws a static picture (thumbnails).
- */
-export function CoachAvatar({
-  appearance,
-  name,
-  state,
-  face,
-  listen: listenLevel,
-  size = 96,
-  still = false,
-  className,
-}: {
+type CoachAvatarProps = {
   appearance: AiCoachAppearance;
   name: string;
   state: CoachState;
@@ -71,7 +30,197 @@ export function CoachAvatar({
   size?: number;
   still?: boolean;
   className?: string;
-}) {
+};
+
+/** Below this size (chat bubbles, thumbnails) the 2D drawing reads better and costs nothing. */
+const MIN_3D_SIZE = 100;
+
+/**
+ * The animated AI Coach, drawn from the member's design (no vendor, works
+ * offline). Large live avatars are 3D (three.js, loaded on demand); small and
+ * `still` ones (thumbnails) are SVG, which is also shown while 3D loads and
+ * whenever WebGL isn't available. Both move the same way (coach-motion.ts).
+ */
+export function CoachAvatar(props: CoachAvatarProps) {
+  const { size = 96, still = false } = props;
+  if (still || size < MIN_3D_SIZE) return <CoachAvatar2D {...props} />;
+  return <CoachAvatar3D {...props} />;
+}
+
+function CoachAvatar3D({ appearance, name, state, face, listen, size = 96, className }: CoachAvatarProps) {
+  const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState(false);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<CoachScene | null>(null);
+  const stateRef = useRef(state);
+  const appearanceRef = useRef(appearance);
+  const sizeRef = useRef(size);
+  const appearanceKey = JSON.stringify(appearance);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  useEffect(() => {
+    appearanceRef.current = JSON.parse(appearanceKey) as AiCoachAppearance;
+    sceneRef.current?.setAppearance(appearanceRef.current);
+  }, [appearanceKey]);
+  useEffect(() => {
+    sizeRef.current = size;
+    sceneRef.current?.setSize(size);
+  }, [size]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || failed) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const motion = createCoachMotion({ reduced });
+    let scene: CoachScene | null = null;
+    let canvas: HTMLCanvasElement | null = null;
+    let starting = false;
+    let cancelled = false;
+    let onScreen = true;
+    let frame = 0;
+
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      canvas?.removeEventListener("webglcontextlost", fail);
+      scene?.dispose();
+      canvas?.remove();
+      scene = null;
+      canvas = null;
+      sceneRef.current = null;
+      if (!cancelled) setReady(false);
+    };
+    function fail() {
+      stop();
+      if (!cancelled) setFailed(true);
+    }
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      if (!scene || !onScreen) return;
+      const pose = motion.step(now, stateRef.current, face?.current, listen?.current ?? 0);
+      scene.render(pose, stateRef.current);
+    };
+    // A scene (and its WebGL context) exists only while this copy is laid out:
+    // the page renders one per layout and hides the others.
+    const start = async () => {
+      if (scene || starting) return;
+      starting = true;
+      try {
+        const { createCoachScene } = await import("./coach-avatar-3d");
+        if (cancelled || host.clientWidth === 0) return;
+        canvas = document.createElement("canvas");
+        canvas.className = "block size-full";
+        canvas.addEventListener("webglcontextlost", fail);
+        host.appendChild(canvas);
+        scene = createCoachScene(canvas, appearanceRef.current);
+        scene.setSize(sizeRef.current);
+        sceneRef.current = scene;
+        setReady(true);
+        frame = requestAnimationFrame(tick);
+      } catch {
+        fail();
+      } finally {
+        starting = false;
+      }
+    };
+
+    const resize = new ResizeObserver(() => {
+      if (host.clientWidth > 0) void start();
+      else stop();
+    });
+    resize.observe(host);
+    const intersection = new IntersectionObserver(([entry]) => {
+      onScreen = entry?.isIntersecting ?? true;
+    });
+    intersection.observe(host);
+    // Outfit colors follow the theme (light/dark).
+    const theme = new MutationObserver(() => scene?.refreshColors());
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
+
+    return () => {
+      cancelled = true;
+      resize.disconnect();
+      intersection.disconnect();
+      theme.disconnect();
+      stop();
+    };
+  }, [face, listen, failed]);
+
+  const shown = ready && !failed;
+  return (
+    <div
+      role="img"
+      aria-label={avatarLabel(name, state)}
+      data-state={state}
+      style={{ width: size, height: size }}
+      className={cn("coach-avatar relative shrink-0 select-none", className)}
+    >
+      {shown ? (
+        <svg viewBox="0 0 200 200" aria-hidden className="absolute inset-0 size-full overflow-visible">
+          <circle
+            className="coach-ring"
+            cx="100"
+            cy="100"
+            r="96"
+            fill="none"
+            stroke="var(--brand-sky)"
+            strokeWidth="6"
+          />
+          <circle cx="100" cy="100" r="96" fill="var(--secondary)" />
+        </svg>
+      ) : (
+        <CoachAvatar2D
+          appearance={appearance}
+          name={name}
+          state={state}
+          face={face}
+          listen={listen}
+          size={size}
+          decorative
+          className="absolute inset-0"
+        />
+      )}
+      <div ref={hostRef} className={cn("absolute inset-[2%] overflow-hidden rounded-full", !shown && "invisible")} />
+      {shown && state === "thinking" ? (
+        <svg viewBox="0 0 200 200" aria-hidden className="pointer-events-none absolute inset-0 size-full">
+          <ThinkingDots />
+        </svg>
+      ) : null}
+    </div>
+  );
+}
+
+function avatarLabel(name: string, state: CoachState) {
+  return `${name}, your AI coach${state === "idle" ? "" : `, ${state}`}`;
+}
+
+function ThinkingDots() {
+  return (
+    <g className="coach-dots" fill="var(--brand-plum)">
+      <circle cx="150" cy="40" r="5" />
+      <circle cx="164" cy="40" r="5" />
+      <circle cx="178" cy="40" r="5" />
+    </g>
+  );
+}
+
+/**
+ * The coach as an illustrated SVG character. One animation loop moves it;
+ * idle motion stops under prefers-reduced-motion, the mouth still follows
+ * speech. `still` draws a static picture (thumbnails); `decorative` hides it
+ * from assistive tech when a wrapper already labels it.
+ */
+function CoachAvatar2D({
+  appearance,
+  name,
+  state,
+  face,
+  listen: listenLevel,
+  size = 96,
+  still = false,
+  decorative = false,
+  className,
+}: CoachAvatarProps & { decorative?: boolean }) {
   const uid = `coach${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const svgRef = useRef<SVGSVGElement>(null);
   const bodyRef = useRef<SVGGElement>(null);
@@ -92,14 +241,7 @@ export function CoachAvatar({
   useEffect(() => {
     if (still) return;
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    const mouth = { w: MOUTH.rest[0], up: 0, down: 0 };
-    let level = 0;
-    let listen = 0;
-    let nextBlink = performance.now() + random(1500, 4000);
-    let blinkUntil = 0;
-    let nextGlance = performance.now() + random(1200, 3000);
-    let gaze = { x: 0, y: 0 };
-    let eyes = { x: 0, y: 0 };
+    const motion = createCoachMotion({ reduced });
     let visible = true;
     let checkedAt = 0;
     let frame = 0;
@@ -112,67 +254,27 @@ export function CoachAvatar({
         visible = (svgRef.current?.getBoundingClientRect().width ?? 0) > 0;
       }
       if (!visible) return;
-      const current = stateRef.current;
-      const f = face?.current;
-      const speaking = current === "speaking";
-      level += ((speaking ? (f?.level ?? 0) : 0) - level) * 0.3;
-      listen += ((current === "listening" ? (listenLevel?.current ?? 0) : 0) - listen) * 0.15;
+      const pose = motion.step(now, stateRef.current, face?.current, listenLevel?.current ?? 0);
 
-      // Mouth: the viseme's shape, opened further by loudness.
-      const viseme: Viseme = speaking ? (f?.viseme ?? "rest") : "rest";
-      const [tw, tup, tdown] = MOUTH[viseme];
-      const scale = viseme === "rest" || viseme === "M" ? 1 : Math.min(1.2, 0.55 + level * 0.8);
-      mouth.w += (tw - mouth.w) * 0.4;
-      mouth.up += (tup * scale - mouth.up) * 0.4;
-      mouth.down += (tdown * scale - mouth.down) * 0.4;
-      const openness = mouth.up + mouth.down;
-      const d = mouthPath(mouth.w, mouth.up, mouth.down);
+      const { w, up, down } = pose.mouth;
+      const openness = up + down;
+      const d = mouthPath(w, up, down);
       mouthRef.current?.setAttribute("d", d);
       mouthClipRef.current?.setAttribute("d", d);
       mouthRef.current?.setAttribute("opacity", openness > 0.8 ? "1" : "0");
       smileRef.current?.setAttribute("opacity", Math.max(0, 1 - openness / 4).toFixed(2));
-      teethRef.current?.setAttribute("y", (MOUTH_Y - 1 - mouth.up - 0.5).toFixed(1));
-      tongueRef.current?.setAttribute("cy", (MOUTH_Y - 1 + mouth.down * 0.75).toFixed(1));
+      teethRef.current?.setAttribute("y", (MOUTH_Y - 1 - up - 0.5).toFixed(1));
+      tongueRef.current?.setAttribute("cy", (MOUTH_Y - 1 + down * 0.75).toFixed(1));
 
       if (reduced) return;
-      const t = now / 1000;
-
-      // Blinks at irregular intervals, sometimes twice.
-      if (now >= nextBlink) {
-        blinkUntil = now + 130;
-        nextBlink = now + (Math.random() < 0.15 ? 260 : random(2200, 6000));
-      }
-      const lid = now < blinkUntil ? 0.1 : 1;
-      eyesRef.current?.style.setProperty("transform", `scaleY(${lid})`);
-
-      // Glances: small saccades; looks up and aside while thinking, at the member while listening.
-      if (now >= nextGlance) {
-        nextGlance = now + random(current === "listening" ? 2500 : 1200, 4200);
-        gaze =
-          current === "thinking"
-            ? { x: random(1.5, 3), y: random(-3.5, -2) }
-            : current === "listening"
-              ? { x: random(-0.6, 0.6), y: 0 }
-              : { x: random(-2.2, 2.2), y: random(-1.2, 1) };
-      }
-      if (current === "thinking" && gaze.y > -1.5) gaze = { x: 2.5, y: -3 };
-      eyes = { x: eyes.x + (gaze.x - eyes.x) * 0.35, y: eyes.y + (gaze.y - eyes.y) * 0.35 };
-      pupilsRef.current?.setAttribute("transform", `translate(${eyes.x.toFixed(2)} ${eyes.y.toFixed(2)})`);
-
-      // Head: a slow sway, emphasis on loud syllables, and nods while the member talks.
-      const sway = Math.sin(t * 0.55) * 1.4 + Math.sin(t * 0.9 + 1) * 0.6;
-      const nod = speaking ? level * 2.2 : current === "listening" ? listen * Math.max(0, Math.sin(t * 5)) * 3 : 0;
-      const tilt = current === "listening" ? 3 : current === "thinking" ? -2 : 0;
+      eyesRef.current?.style.setProperty("transform", `scaleY(${pose.lid})`);
+      pupilsRef.current?.setAttribute("transform", `translate(${pose.eyes.x.toFixed(2)} ${pose.eyes.y.toFixed(2)})`);
       headRef.current?.style.setProperty(
         "transform",
-        `translateY(${(nod * 0.6).toFixed(2)}px) rotate(${(sway + tilt + nod * 0.4).toFixed(2)}deg)`,
+        `translateY(${(pose.nod * 0.6).toFixed(2)}px) rotate(${pose.roll.toFixed(2)}deg)`,
       );
-
-      const brow =
-        current === "listening" ? -2.5 : current === "thinking" ? -1.5 : speaking ? -Math.max(0, level - 0.5) * 6 : 0;
-      browsRef.current?.setAttribute("transform", `translate(0 ${brow.toFixed(2)})`);
-
-      bodyRef.current?.setAttribute("transform", `translate(0 ${(Math.sin(t * 1.4) * 0.9).toFixed(2)})`);
+      browsRef.current?.setAttribute("transform", `translate(0 ${pose.brow.toFixed(2)})`);
+      bodyRef.current?.setAttribute("transform", `translate(0 ${pose.bob.toFixed(2)})`);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
@@ -180,9 +282,9 @@ export function CoachAvatar({
 
   const skin = SKIN_TONES[appearance.skin];
   const hair = HAIR_COLORS[appearance.hairColor].color;
+  const eyes = coachEyeColor(appearance);
   const outfit = OUTFIT_COLORS[appearance.outfitColor].color;
   const hijab = appearance.hair === "hijab";
-  const label = `${name}, your AI coach${state === "idle" ? "" : `, ${state}`}`;
 
   return (
     <svg
@@ -190,8 +292,9 @@ export function CoachAvatar({
       viewBox="0 0 200 200"
       width={size}
       height={size}
-      role="img"
-      aria-label={label}
+      role={decorative ? undefined : "img"}
+      aria-label={decorative ? undefined : avatarLabel(name, state)}
+      aria-hidden={decorative || undefined}
       data-state={state}
       className={cn("coach-avatar shrink-0 select-none", className)}
     >
@@ -243,8 +346,10 @@ export function CoachAvatar({
 
             <g ref={eyesRef} className="coach-eyes">
               <g ref={pupilsRef}>
-                <ellipse cx="83" cy="92" rx="5.5" ry="6.5" fill="#2a1a18" />
-                <ellipse cx="117" cy="92" rx="5.5" ry="6.5" fill="#2a1a18" />
+                <ellipse cx="83" cy="92" rx="5.5" ry="6.5" fill={eyes} />
+                <ellipse cx="117" cy="92" rx="5.5" ry="6.5" fill={eyes} />
+                <ellipse cx="83" cy="92" rx="3.2" ry="3.8" fill="#1a0f0b" />
+                <ellipse cx="117" cy="92" rx="3.2" ry="3.8" fill="#1a0f0b" />
                 <circle cx="85" cy="89.5" r="1.8" fill="white" />
                 <circle cx="119" cy="89.5" r="1.8" fill="white" />
               </g>
@@ -293,13 +398,7 @@ export function CoachAvatar({
         </g>
       </g>
 
-      {state === "thinking" ? (
-        <g className="coach-dots" fill="var(--brand-plum)">
-          <circle cx="150" cy="40" r="5" />
-          <circle cx="164" cy="40" r="5" />
-          <circle cx="178" cy="40" r="5" />
-        </g>
-      ) : null}
+      {state === "thinking" ? <ThinkingDots /> : null}
     </svg>
   );
 }

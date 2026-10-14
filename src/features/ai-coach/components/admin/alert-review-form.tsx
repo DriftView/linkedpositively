@@ -30,7 +30,7 @@ export function AlertReviewForm({ id, status, staffNote }: { id: string; status:
       <h2 className="font-sans text-base font-semibold">Follow-up</h2>
       <fieldset>
         <legend className="mb-2 text-sm font-medium">Status</legend>
-        <div className="inline-flex rounded-lg bg-muted p-1" role="radiogroup">
+        <div className="inline-flex max-w-full flex-wrap rounded-lg bg-muted p-1" role="radiogroup">
           {AI_ALERT_STATUSES.map((value) => (
             <button
               key={value}

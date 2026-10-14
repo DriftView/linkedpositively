@@ -186,7 +186,7 @@ function SurveyDialog({ survey }: { survey: Survey }) {
                     aria-label="Question"
                     value={entry.source}
                     onChange={(e) => setForm({ ...form, fieldMap: form.fieldMap.map((row, i) => (i === index ? { ...row, source: e.target.value } : row)) })}
-                    className="h-8 w-32"
+                    className="h-8 min-w-0 flex-1 sm:w-32 sm:flex-none"
                   />
                   <span className="text-muted-foreground" aria-hidden>
                     →
@@ -195,7 +195,7 @@ function SurveyDialog({ survey }: { survey: Survey }) {
                     value={entry.target}
                     onValueChange={(value) => setForm({ ...form, fieldMap: form.fieldMap.map((row, i) => (i === index ? { ...row, target: value as typeof row.target } : row)) })}
                   >
-                    <SelectTrigger className="w-40" aria-label="Field">
+                    <SelectTrigger className="w-36 shrink-0 sm:w-40" aria-label="Field">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

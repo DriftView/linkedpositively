@@ -18,7 +18,7 @@ export function AutoTextarea({ className, value, minRows = 2, ...props }: React.
       rows={minRows}
       value={value}
       className={cn(
-        "block w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm leading-relaxed outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-60 dark:bg-input/30",
+        "block w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-base leading-relaxed outline-none sm:text-sm transition-[border-color,box-shadow] placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-60 dark:bg-input/30",
         className,
       )}
       {...props}

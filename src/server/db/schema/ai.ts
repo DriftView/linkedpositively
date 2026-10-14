@@ -258,7 +258,8 @@ export const AI_COACH_HAIR_COLORS = [
   "plum",
   "teal",
 ] as const;
-export const AI_COACH_FACIAL_HAIR = ["none", "stubble", "mustache", "beard"] as const;
+export const AI_COACH_EYE_COLORS = ["dark_brown", "brown", "hazel", "green", "blue", "gray"] as const;
+export const AI_COACH_FACIAL_HAIR =["none", "stubble", "mustache", "beard"] as const;
 export const AI_COACH_GLASSES = ["none", "round", "square"] as const;
 export const AI_COACH_EARRINGS = ["none", "studs", "hoops"] as const;
 export const AI_COACH_OUTFITS = ["tee", "hoodie", "collar"] as const;
@@ -268,6 +269,8 @@ export type AiCoachAppearance = {
   skin: (typeof AI_COACH_SKINS)[number];
   hair: (typeof AI_COACH_HAIRS)[number];
   hairColor: (typeof AI_COACH_HAIR_COLORS)[number];
+  /** Added later; designs saved before it have none (see `coachEyeColor`). */
+  eyeColor?: (typeof AI_COACH_EYE_COLORS)[number];
   facialHair: (typeof AI_COACH_FACIAL_HAIR)[number];
   glasses: (typeof AI_COACH_GLASSES)[number];
   earrings: (typeof AI_COACH_EARRINGS)[number];

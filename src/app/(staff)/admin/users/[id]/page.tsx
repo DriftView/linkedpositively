@@ -109,7 +109,7 @@ export default async function UserPage({ params }: PageProps<"/admin/users/[id]"
           </section>
 
           <Tabs defaultValue="texts" className="gap-3">
-            <TabsList>
+            <TabsList className="max-w-full justify-start overflow-x-auto">
               <TabsTrigger value="texts">
                 <MessageSquareText /> Study texts
               </TabsTrigger>

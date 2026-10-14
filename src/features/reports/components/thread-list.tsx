@@ -68,7 +68,7 @@ export function ThreadList({ threads, total }: { threads: Thread[]; total: numbe
                   Content warning: {thread.headline}
                 </p>
               ) : null}
-              <p className="mt-2 text-[0.9rem] leading-relaxed whitespace-pre-line">{thread.body || <span className="text-muted-foreground italic">No text</span>}</p>
+              <p className="mt-2 text-[0.9rem] leading-relaxed break-words whitespace-pre-line">{thread.body || <span className="text-muted-foreground italic">No text</span>}</p>
             </article>
             {thread.comments.length ? (
               <ol className="space-y-2 border-t bg-muted/30 px-4 py-3 sm:px-5" aria-label={`${thread.comments.length} replies`}>
@@ -86,7 +86,7 @@ export function ThreadList({ threads, total }: { threads: Thread[]; total: numbe
                           <Reactions n={comment.reactions} />
                         </span>
                       </div>
-                      <p className="mt-0.5 text-sm leading-relaxed whitespace-pre-line">{comment.body || <span className="text-muted-foreground italic">No text</span>}</p>
+                      <p className="mt-0.5 text-sm leading-relaxed break-words whitespace-pre-line">{comment.body || <span className="text-muted-foreground italic">No text</span>}</p>
                     </div>
                   </li>
                 ))}

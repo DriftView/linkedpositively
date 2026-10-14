@@ -31,7 +31,7 @@ function ReportCard({ card }: { card: Card }) {
   return (
     <li className="group relative flex min-w-0 flex-col rounded-2xl border bg-card p-4 shadow-soft transition-colors focus-within:ring-2 focus-within:ring-ring hover:border-primary/40">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-[0.95rem] leading-snug font-semibold">
+        <h3 className="min-w-0 text-[0.95rem] leading-snug font-semibold">
           <Link href={card.href} className="outline-none after:absolute after:inset-0 after:rounded-2xl after:content-['']">
             {card.title}
           </Link>

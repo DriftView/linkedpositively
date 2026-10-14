@@ -59,11 +59,11 @@ export function ParticipantShell({
 
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/65">
         <div className="mx-auto flex h-15 max-w-6xl items-center gap-3 px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2.5 rounded-lg focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-            <LogoMark className="size-8 text-primary" />
-            <span className="font-heading text-[1.05rem] font-semibold tracking-tight">{programName}</span>
+          <Link href="/" className="flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+            <LogoMark className="size-8 shrink-0 text-primary" />
+            <span className="truncate font-heading text-[1.05rem] font-semibold tracking-tight max-[359px]:sr-only">{programName}</span>
           </Link>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <SearchButton />
             <NotificationBell unread={unread} href={bellHref} />
             <UserMenu user={user} />
@@ -157,7 +157,7 @@ function MobileTabBar({ primary, more, pathname }: { primary: NavItem[]; more: N
                     <span className="absolute -top-1 -right-1.5 size-2 rounded-full bg-brand-magenta ring-2 ring-background" />
                   ) : null}
                 </span>
-                <span className={cn("relative", active && "text-foreground")}>{item.label}</span>
+                <span className={cn("relative max-w-full truncate px-1", active && "text-foreground")}>{item.label}</span>
               </Link>
             </li>
           );
@@ -170,9 +170,9 @@ function MobileTabBar({ primary, more, pathname }: { primary: NavItem[]; more: N
             >
               {moreActive ? <span className="absolute top-2 h-8 w-14 rounded-full bg-secondary" /> : null}
               <Ellipsis className={cn("relative size-5", moreActive && "text-primary")} />
-              <span className={cn("relative", moreActive && "text-foreground")}>More</span>
+              <span className={cn("relative max-w-full truncate px-1", moreActive && "text-foreground")}>More</span>
             </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+            <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-3xl pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               <SheetHeader>
                 <SheetTitle>More</SheetTitle>
               </SheetHeader>
@@ -185,7 +185,7 @@ function MobileTabBar({ primary, more, pathname }: { primary: NavItem[]; more: N
                       target={item.external ? "_blank" : undefined}
                       rel={item.external ? "noreferrer" : undefined}
                       className={cn(
-                        "flex aspect-[5/4] flex-col items-center justify-center gap-2 rounded-2xl bg-muted/60 p-2 text-center text-xs font-medium transition-colors active:scale-[0.98]",
+                        "flex aspect-[5/4] min-w-0 flex-col items-center justify-center gap-2 rounded-2xl bg-muted/60 p-2 text-center text-xs font-medium wrap-break-word hyphens-auto transition-colors active:scale-[0.98]",
                         isActive(pathname, item.href) && "bg-secondary text-secondary-foreground",
                       )}
                     >

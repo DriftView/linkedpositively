@@ -34,7 +34,7 @@ export default async function AiAlertsPage(props: PageProps<"/admin/ai/alerts">)
         description="Conversations where the AI Coach noticed a possible crisis or the member asked for a person. Urgent first, then oldest. Follow the study's safety protocol."
         count={counts.open || undefined}
       />
-      <nav aria-label="Alert status" className="mb-4 inline-flex rounded-lg bg-muted p-1">
+      <nav aria-label="Alert status" className="mb-4 inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1">
         {TABS.map((item) => {
           const count = item.id === "all" ? total : counts[item.id];
           return (
@@ -43,7 +43,7 @@ export default async function AiAlertsPage(props: PageProps<"/admin/ai/alerts">)
               href={item.id === "open" ? "/admin/ai/alerts" : `/admin/ai/alerts?status=${item.id}`}
               aria-current={tab.id === item.id ? "page" : undefined}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground",
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground",
                 tab.id === item.id && "bg-card text-foreground shadow-soft",
               )}
             >
@@ -57,7 +57,7 @@ export default async function AiAlertsPage(props: PageProps<"/admin/ai/alerts">)
       </nav>
       <AlertList alerts={list.alerts} timezone={viewer.timezone} emptyLabel={tab.empty} />
       {list.pageCount > 1 ? (
-        <div className="mt-4 flex items-center justify-end gap-3 text-sm text-muted-foreground">
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-3 text-sm text-muted-foreground">
           {list.page > 1 ? (
             <Link href={pageHref(list.page - 1)} className="font-medium text-primary hover:underline">
               Previous

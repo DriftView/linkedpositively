@@ -67,7 +67,7 @@ export function ReportFiltersBar({
                 if (!entry) return;
                 apply(entry.days ? presetRange(entry.days) : { from: undefined, to: undefined });
               }}
-              className="bg-background"
+              className="max-w-full overflow-x-auto bg-background"
             >
               {PRESETS.map((p) => (
                 <ToggleGroupItem key={p.id} value={p.id} className="px-3 text-xs">
@@ -76,25 +76,25 @@ export function ReportFiltersBar({
               ))}
             </ToggleGroup>
           </fieldset>
-          <div className="flex items-end gap-2">
-            <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+          <div className="flex w-full items-end gap-2 sm:w-auto">
+            <label className="grid min-w-0 flex-1 gap-1.5 text-xs font-medium text-muted-foreground sm:flex-none">
               From
               <Input
                 type="date"
                 value={filters.from ?? ""}
                 max={filters.to}
                 onChange={(event) => apply({ from: event.target.value || undefined })}
-                className="h-8 w-[9.5rem] bg-background text-sm text-foreground"
+                className="h-8 w-full bg-background text-sm text-foreground sm:w-[9.5rem]"
               />
             </label>
-            <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+            <label className="grid min-w-0 flex-1 gap-1.5 text-xs font-medium text-muted-foreground sm:flex-none">
               To
               <Input
                 type="date"
                 value={filters.to ?? ""}
                 min={filters.from}
                 onChange={(event) => apply({ to: event.target.value || undefined })}
-                className="h-8 w-[9.5rem] bg-background text-sm text-foreground"
+                className="h-8 w-full bg-background text-sm text-foreground sm:w-[9.5rem]"
               />
             </label>
           </div>
