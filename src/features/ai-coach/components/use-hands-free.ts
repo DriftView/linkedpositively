@@ -280,8 +280,9 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
     tickRef.current = tick;
   }, [tick]);
 
+  /** Opens the mic and starts listening. Resolves to whether the session is on. */
   const start = useCallback(async () => {
-    if (phaseRef.current !== "off") return;
+    if (phaseRef.current !== "off") return true;
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -289,7 +290,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
       });
     } catch {
       callbacks.current.onError("Allow microphone access to talk to your coach.");
-      return;
+      return false;
     }
     streamRef.current = stream;
     const Context =
@@ -306,6 +307,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
     phaseRef.current = "listening";
     timerRef.current = setInterval(() => tickRef.current(), TICK_MS);
     listen();
+    return true;
   }, [listen]);
 
   /** The coach finished (or the turn failed): listen for the member again. */

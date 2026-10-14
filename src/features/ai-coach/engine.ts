@@ -25,7 +25,7 @@ import { resolveCoach } from "./coach-design";
 import { buildMemberContext, buildPersona, conversationTitle, SYSTEM_PROMPT } from "./prompt";
 import { detectKeywordRisk, maxRisk, riskRank } from "./safety";
 import { runTool, TOOLS, type ToolContext } from "./tools";
-import type { AiStreamEvent, ChatMessageDTO } from "./types";
+import type { AiPreferencesDTO, AiStreamEvent, ChatMessageDTO } from "./types";
 
 /**
  * One AI Coach turn: the member's message in, a streamed reply out.
@@ -52,6 +52,8 @@ export type ChatInput = {
   near: string | null;
   viaVoice: boolean;
   handsFree?: boolean;
+  /** Already loaded by the caller (saves a query). */
+  preferences?: AiPreferencesDTO;
   emit: (event: AiStreamEvent) => void;
 };
 
@@ -84,35 +86,48 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
   let title = conversationTitle(input.text);
   let turnCount = 0;
   if (conversationId) {
-    const [conversation] = await db
-      .select({ id: aiConversations.id, title: aiConversations.title })
-      .from(aiConversations)
-      .where(
-        and(
-          eq(aiConversations.id, conversationId),
-          eq(aiConversations.userId, viewer.id),
-          isNull(aiConversations.hiddenAt),
-        ),
-      )
-      .limit(1);
+    const [[conversation], [{ turns }]] = await Promise.all([
+      db
+        .select({ id: aiConversations.id, title: aiConversations.title })
+        .from(aiConversations)
+        .where(
+          and(
+            eq(aiConversations.id, conversationId),
+            eq(aiConversations.userId, viewer.id),
+            isNull(aiConversations.hiddenAt),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ turns: count() })
+        .from(aiMessages)
+        .where(and(eq(aiMessages.conversationId, conversationId), eq(aiMessages.role, "user"))),
+    ]);
     if (!conversation) throw new ChatError("That conversation isn't available. Start a new one.");
     title = conversation.title;
-    const [{ turns }] = await db
-      .select({ turns: count() })
-      .from(aiMessages)
-      .where(and(eq(aiMessages.conversationId, conversationId), eq(aiMessages.role, "user")));
     turnCount = turns;
   }
 
   // Facts about the member (the member context note, the tools).
-  const [preferences, [profile], navigator] = await Promise.all([
-    getPreferences(viewer.id),
+  // The hourly count is taken before this message is saved (so the limit check below uses >=).
+  const [preferences, [profile], navigator, [{ recent }]] = await Promise.all([
+    input.preferences ?? getPreferences(viewer.id),
     db
       .select({ firstName: profiles.firstName, pronouns: profiles.pronouns, location: profiles.location })
       .from(profiles)
       .where(eq(profiles.userId, viewer.id))
       .limit(1),
     can(viewer, "peernav.participant") ? getMyCoach(viewer.id) : Promise.resolve(null),
+    db
+      .select({ recent: count() })
+      .from(aiMessages)
+      .where(
+        and(
+          eq(aiMessages.userId, viewer.id),
+          eq(aiMessages.role, "user"),
+          gte(aiMessages.createdAt, new Date(Date.now() - 60 * 60 * 1000)),
+        ),
+      ),
   ]);
 
   const isNew = !conversationId;
@@ -167,12 +182,13 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     })
     .returning({ id: aiMessages.id });
   emit({ type: "start", conversationId, userMessageId: userMessage.id, title });
-  await trackUsage(viewer.id, "ai_message", {
+  // Usage events never throw and the reply doesn't need them: don't wait.
+  void trackUsage(viewer.id, "ai_message", {
     voice: input.viaVoice,
     handsFree: Boolean(input.handsFree),
     newConversation: isNew,
   });
-  if (input.viaVoice) await trackUsage(viewer.id, "ai_voice_input");
+  if (input.viaVoice) void trackUsage(viewer.id, "ai_voice_input");
 
   const cards: AiCards = {};
   const safety: { shown: AiRiskLevel } = { shown: "none" };
@@ -228,18 +244,6 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     logger.error({ err: error instanceof Error ? error.message : error }, "ai classification step failed"),
   );
 
-  // Limits.
-  const [{ recent }] = await db
-    .select({ recent: count() })
-    .from(aiMessages)
-    .where(
-      and(
-        eq(aiMessages.userId, viewer.id),
-        eq(aiMessages.role, "user"),
-        gte(aiMessages.createdAt, new Date(Date.now() - 60 * 60 * 1000)),
-      ),
-    );
-
   const longConversation = turnCount >= MAX_TURNS_PER_CONVERSATION;
   let text = "";
   let outcome: AiOutcome = "answered";
@@ -250,7 +254,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     emit({ type: "text", delta });
   };
 
-  if (recent > HOURLY_MESSAGE_LIMIT) {
+  if (recent >= HOURLY_MESSAGE_LIMIT) {
     outcome = "fallback_limit";
   } else if (longConversation) {
     outcome = "fallback_limit";
@@ -279,7 +283,9 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         tone: coach.tone,
         replyLength: coach.replyLength,
       });
-      const result = await streamReply(history, userParam, toolContext, emitText, usage, persona);
+      // Spoken replies are short and a member is listening: think less, start talking sooner.
+      const effort = input.viaVoice || input.handsFree ? "low" : "medium";
+      const result = await streamReply(history, userParam, toolContext, emitText, usage, persona, effort);
       turnMessages = result.messages;
       if (result.refused) outcome = "fallback_refusal";
     } catch (error) {
@@ -371,6 +377,7 @@ export async function streamReply(
   usage: { input: number; output: number },
   /** The member's coach design (buildPersona), after the cached system prompt. */
   persona?: string,
+  effort: "low" | "medium" = "medium",
 ): Promise<ReplyResult> {
   const turn: Anthropic.Beta.BetaMessageParam[] = [userParam];
   let wroteText = false;
@@ -383,7 +390,7 @@ export async function streamReply(
       max_tokens: 16000,
       betas: [FALLBACK_BETA],
       fallbacks: "default",
-      output_config: { effort: "medium" },
+      output_config: { effort },
       // The system prompt and tool list are identical for every member: cached.
       system: [
         { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },

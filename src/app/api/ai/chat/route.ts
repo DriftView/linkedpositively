@@ -34,8 +34,9 @@ export async function POST(request: Request) {
   if (!parsed.success)
     return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid message." }, { status: 400 });
   const body = parsed.data;
-  const speak = Boolean(body.speak) && voiceConfigured() && (await getSettings()).aiVoiceEnabled;
-  const voice = speak ? resolveCoach((await getPreferences(viewer.id)).design).voice : null;
+  const [settings, preferences] = await Promise.all([getSettings(), getPreferences(viewer.id)]);
+  const speak = Boolean(body.speak) && voiceConfigured() && settings.aiVoiceEnabled;
+  const voice = speak ? resolveCoach(preferences.design).voice : null;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
           near: body.near ?? null,
           viaVoice: Boolean(body.viaVoice),
           handsFree: Boolean(body.handsFree),
+          preferences,
           emit,
         });
         if (speech && (await speech.finish()))

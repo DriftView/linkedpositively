@@ -46,7 +46,7 @@ export const CRISIS_LINES: CrisisLine[] = [
 ];
 
 /** Hands-free talk: silence that ends the member's turn, and how long an unused open mic stays on. */
-export const END_OF_TURN_SILENCE_MS = 900;
+export const END_OF_TURN_SILENCE_MS = 700;
 export const HANDS_FREE_IDLE_MS = 90_000;
 
 /** Most text spoken for one reply (keeps a long answer from running up the voice bill). */

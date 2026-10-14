@@ -44,7 +44,7 @@ export async function synthesizeSpeech(
   const voiceId = voice ? coachVoice(voice).elevenLabsId : env.ELEVENLABS_VOICE_ID;
   try {
     const response = await fetch(
-      `${BASE}/text-to-speech/${encodeURIComponent(voiceId)}/with-timestamps?output_format=mp3_44100_128`,
+      `${BASE}/text-to-speech/${encodeURIComponent(voiceId)}/with-timestamps?output_format=mp3_22050_32`,
       {
         method: "POST",
         headers: { "xi-api-key": env.ELEVENLABS_API_KEY, "content-type": "application/json" },

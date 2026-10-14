@@ -44,7 +44,7 @@ export const env = createEnv({
     // Voice (ElevenLabs). Without a key, voice uses the browser's built-in speech where available.
     ELEVENLABS_API_KEY: z.string().optional(),
     ELEVENLABS_VOICE_ID: z.string().default("JBFqnCBsd6RMkjVDRZzb"),
-    ELEVENLABS_MODEL_ID: z.string().default("eleven_multilingual_v2"),
+    ELEVENLABS_MODEL_ID: z.string().default("eleven_flash_v2_5"),
 
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   },

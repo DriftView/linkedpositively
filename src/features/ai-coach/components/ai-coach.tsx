@@ -8,9 +8,7 @@ import {
   LifeBuoy,
   LocateFixed,
   Mic,
-  MicOff,
   Palette,
-  PhoneOff,
   Plus,
   Send,
   Settings2,
@@ -32,6 +30,7 @@ import { speakableText } from "../prompt";
 import type { AiCards, AiPreferencesDTO, AiStreamEvent, ChatMessageDTO, ConversationSummaryDTO } from "../types";
 import { SpeechChunker } from "../voice-lib";
 import { CoachAvatar, type CoachState } from "./coach-avatar";
+import { CoachCall } from "./coach-call";
 import { CoachDesigner } from "./coach-designer";
 import { HelpSheet, HistorySheet, SettingsSheet } from "./coach-sheets";
 import { CoachMarkdown, CrisisCard, ReplyCards } from "./reply-cards";
@@ -72,7 +71,8 @@ type SendOptions = { viaVoice?: boolean; handsFree?: boolean };
  * cards, and a composer that takes text or voice. Replies stream in from
  * POST /api/ai/chat (NDJSON, see types.ts AiStreamEvent); when the reply is
  * to be heard, it is spoken sentence by sentence as it streams. Hands-free
- * voice chat turns the composer into call controls: the member just talks.
+ * voice chat opens a full-screen call with the coach (coach-call.tsx): the
+ * member just talks.
  */
 export function AiCoach(props: Props) {
   const router = useRouter();
@@ -89,6 +89,8 @@ export function AiCoach(props: Props) {
   const [locating, setLocating] = useState(false);
   const [sheet, setSheet] = useState<"history" | "settings" | "help" | "designer" | null>(null);
   const [designerKey, setDesignerKey] = useState(0);
+  const [connecting, setConnecting] = useState(false);
+  const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const sendingRef = useRef(false);
   const queuedRef = useRef<{ text: string; options: SendOptions } | null>(null);
@@ -287,9 +289,15 @@ export function AiCoach(props: Props) {
   }, [resumeHandsFree]);
   useEffect(() => setCoachSpeaking(Boolean(voice.speakingId)), [setCoachSpeaking, voice.speakingId]);
 
-  function startHandsFree() {
+  async function startHandsFree() {
     voice.unlock();
-    void handsFree.start();
+    setConnecting(true);
+    const shown = Date.now();
+    const on = await handsFree.start();
+    // A short "Connecting…" moment even when the mic opens at once, so the call has a clear start.
+    if (on) await new Promise((resolve) => setTimeout(resolve, Math.max(0, 800 - (Date.now() - shown))));
+    setConnecting(false);
+    setCallStartedAt(on ? Date.now() : null);
   }
 
   function endHandsFree() {
@@ -297,6 +305,7 @@ export function AiCoach(props: Props) {
     voice.stop();
   }
 
+  const inCall = connecting || handsFree.active;
   const hfPhase = handsFree.phase;
   const avatarState: CoachState =
     mic.state === "recording" || hfPhase === "listening" || hfPhase === "hearing"
@@ -408,6 +417,7 @@ export function AiCoach(props: Props) {
       <aside className="hidden lg:block">
         <div className="sticky top-20 flex flex-col items-center rounded-2xl border bg-card p-5 text-center shadow-soft">
           <CoachAvatar
+            still={inCall}
             appearance={coach.appearance}
             name={coach.name}
             state={avatarState}
@@ -445,6 +455,7 @@ export function AiCoach(props: Props) {
         <header className="flex items-center gap-2 border-b px-2.5 py-2.5 sm:gap-3 sm:px-3 lg:px-4">
           <div className="lg:hidden">
             <CoachAvatar
+              still={inCall}
               appearance={coach.appearance}
               name={coach.name}
               state={avatarState}
@@ -482,27 +493,6 @@ export function AiCoach(props: Props) {
           </p>
         ) : null}
 
-        {handsFree.active ? (
-          <div className="flex flex-col items-center gap-1.5 border-b bg-gradient-to-b from-secondary/70 to-card px-4 pt-3 pb-3 text-center">
-            <div className="lg:hidden">
-              <CoachAvatar
-                appearance={coach.appearance}
-                name={coach.name}
-                state={avatarState}
-                face={voice.face}
-                listen={handsFree.listenLevel}
-                size={148}
-                className="[@media(max-height:42rem)]:size-24!"
-              />
-            </div>
-            <p className="text-sm font-medium text-brand-plum dark:text-brand-sky">{statusLine}</p>
-            {/* Captions of what the coach is saying (the full reply is in the conversation below). */}
-            <p aria-hidden className="line-clamp-3 min-h-10 max-w-md text-[0.95rem] leading-snug">
-              {voice.caption}
-            </p>
-          </div>
-        ) : null}
-
         <div
           ref={listRef}
           className="min-h-0 flex-1 overflow-y-auto px-3 py-4 lg:px-5"
@@ -513,6 +503,7 @@ export function AiCoach(props: Props) {
             <div className="mx-auto flex max-w-md flex-col items-center py-6 text-center">
               <div className="lg:hidden">
                 <CoachAvatar
+                  still={inCall}
                   appearance={coach.appearance}
                   name={coach.name}
                   state={avatarState}
@@ -630,146 +621,133 @@ export function AiCoach(props: Props) {
           </button>
         ) : null}
 
-        {handsFree.active ? (
-          <div className="border-t bg-background/60 p-3">
-            <div className="flex flex-wrap items-center justify-center gap-2.5">
-              <Button
+        <form
+          className="border-t bg-background/60 p-2.5 lg:p-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            voice.unlock();
+            void send(input);
+          }}
+        >
+          {near ? (
+            <p className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-brand-sky/15 px-2.5 py-1 text-xs font-medium">
+              <LocateFixed aria-hidden className="size-3.5 shrink-0" /> Using your location for nearby places
+              <button
                 type="button"
-                variant={handsFree.muted ? "secondary" : "outline"}
-                size="icon-lg"
-                className="size-12 rounded-full"
-                aria-pressed={handsFree.muted}
-                aria-label={handsFree.muted ? "Unmute microphone" : "Mute microphone"}
-                onClick={() => handsFree.setMuted(!handsFree.muted)}
+                onClick={() => setNear(null)}
+                className="rounded-full p-0.5 hover:bg-background"
+                aria-label="Stop sharing location"
               >
-                {handsFree.muted ? <MicOff aria-hidden /> : <Mic aria-hidden />}
-              </Button>
-              {voice.speakingId ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 rounded-full px-4"
-                  onClick={() => {
-                    voice.stop();
-                    handsFree.resume();
-                  }}
-                >
-                  <Square aria-hidden /> Stop talking
-                </Button>
-              ) : null}
-              <Button type="button" variant="destructive" className="h-12 rounded-full px-5" onClick={endHandsFree}>
-                <PhoneOff aria-hidden /> End voice chat
-              </Button>
-            </div>
-            <p className="mt-2 text-center text-[0.7rem] text-muted-foreground">
-              Your mic is on. When you pause, your words are sent to the coach. AI coach, not a doctor. In an emergency,
-              call 911 or 988.
+                <X aria-hidden className="size-3.5" />
+              </button>
             </p>
-          </div>
-        ) : (
-          <form
-            className="border-t bg-background/60 p-2.5 lg:p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              voice.unlock();
-              void send(input);
-            }}
-          >
-            {near ? (
-              <p className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-brand-sky/15 px-2.5 py-1 text-xs font-medium">
-                <LocateFixed aria-hidden className="size-3.5 shrink-0" /> Using your location for nearby places
-                <button
-                  type="button"
-                  onClick={() => setNear(null)}
-                  className="rounded-full p-0.5 hover:bg-background"
-                  aria-label="Stop sharing location"
-                >
-                  <X aria-hidden className="size-3.5" />
-                </button>
-              </p>
-            ) : null}
-            <div className="flex items-end gap-1.5">
+          ) : null}
+          <div className="flex items-end gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              className={cn("size-11 shrink-0", near && "text-brand-plum dark:text-brand-sky")}
+              aria-label={near ? "Stop sharing location" : "Share my location for nearby places"}
+              aria-pressed={Boolean(near)}
+              onClick={shareLocation}
+              disabled={locating}
+            >
+              {locating ? <Spinner /> : <LocateFixed aria-hidden />}
+            </Button>
+            <label htmlFor="ai-input" className="sr-only">
+              Message your coach
+            </label>
+            <AutoTextarea
+              id="ai-input"
+              minRows={1}
+              value={input}
+              maxLength={MAX_MESSAGE_LENGTH}
+              placeholder={mic.state === "recording" ? "Listening…" : "Ask anything…"}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  voice.unlock();
+                  void send(input);
+                }
+              }}
+              className="max-h-40 min-h-11 min-w-0 flex-1 rounded-2xl py-2.5 text-base sm:text-[0.95rem]"
+              disabled={mic.state !== "idle"}
+            />
+            {props.voiceEnabled && mic.supported ? (
               <Button
                 type="button"
-                variant="ghost"
+                variant={mic.state === "recording" ? "destructive" : "ghost"}
                 size="icon-lg"
-                className={cn("size-11 shrink-0", near && "text-brand-plum dark:text-brand-sky")}
-                aria-label={near ? "Stop sharing location" : "Share my location for nearby places"}
-                aria-pressed={Boolean(near)}
-                onClick={shareLocation}
-                disabled={locating}
+                className={cn("size-11 shrink-0 rounded-full", mic.state === "recording" && "animate-pulse")}
+                aria-label={mic.state === "recording" ? "Stop recording" : "Talk to your coach"}
+                onClick={() => (mic.state === "recording" ? mic.stop() : void mic.start())}
+                disabled={sending || mic.state === "transcribing"}
               >
-                {locating ? <Spinner /> : <LocateFixed aria-hidden />}
+                {mic.state === "transcribing" ? (
+                  <Spinner />
+                ) : mic.state === "recording" ? (
+                  <Square aria-hidden />
+                ) : (
+                  <Mic aria-hidden />
+                )}
               </Button>
-              <label htmlFor="ai-input" className="sr-only">
-                Message your coach
-              </label>
-              <AutoTextarea
-                id="ai-input"
-                minRows={1}
-                value={input}
-                maxLength={MAX_MESSAGE_LENGTH}
-                placeholder={mic.state === "recording" ? "Listening…" : "Ask anything…"}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    voice.unlock();
-                    void send(input);
-                  }
-                }}
-                className="max-h-40 min-h-11 min-w-0 flex-1 rounded-2xl py-2.5 text-base sm:text-[0.95rem]"
-                disabled={mic.state !== "idle"}
-              />
-              {props.voiceEnabled && mic.supported ? (
-                <Button
-                  type="button"
-                  variant={mic.state === "recording" ? "destructive" : "ghost"}
-                  size="icon-lg"
-                  className={cn("size-11 shrink-0 rounded-full", mic.state === "recording" && "animate-pulse")}
-                  aria-label={mic.state === "recording" ? "Stop recording" : "Talk to your coach"}
-                  onClick={() => (mic.state === "recording" ? mic.stop() : void mic.start())}
-                  disabled={sending || mic.state === "transcribing"}
-                >
-                  {mic.state === "transcribing" ? (
-                    <Spinner />
-                  ) : mic.state === "recording" ? (
-                    <Square aria-hidden />
-                  ) : (
-                    <Mic aria-hidden />
-                  )}
-                </Button>
-              ) : null}
-              {props.voiceEnabled && handsFree.supported && !input.trim() ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon-lg"
-                  className="size-11 shrink-0 rounded-full"
-                  aria-label="Start a voice chat"
-                  title="Voice chat: just talk, no buttons"
-                  onClick={startHandsFree}
-                  disabled={sending || mic.state !== "idle"}
-                >
-                  <AudioLines aria-hidden />
-                </Button>
-              ) : null}
+            ) : null}
+            {props.voiceEnabled && handsFree.supported && !input.trim() ? (
               <Button
-                type="submit"
+                type="button"
+                variant="secondary"
                 size="icon-lg"
                 className="size-11 shrink-0 rounded-full"
-                aria-label="Send"
-                disabled={sending || !input.trim()}
+                aria-label="Start a voice chat"
+                title="Voice chat: just talk, no buttons"
+                onClick={() => void startHandsFree()}
+                disabled={sending || mic.state !== "idle" || inCall}
               >
-                {sending ? <Spinner /> : <Send aria-hidden />}
+                <AudioLines aria-hidden />
               </Button>
-            </div>
-            <p className="mt-1.5 px-1 text-[0.7rem] text-muted-foreground lg:hidden">
-              AI coach, not a doctor. It can make mistakes. In an emergency, call 911 or 988.
-            </p>
-          </form>
-        )}
+            ) : null}
+            <Button
+              type="submit"
+              size="icon-lg"
+              className="size-11 shrink-0 rounded-full"
+              aria-label="Send"
+              disabled={sending || !input.trim()}
+            >
+              {sending ? <Spinner /> : <Send aria-hidden />}
+            </Button>
+          </div>
+          <p className="mt-1.5 px-1 text-[0.7rem] text-muted-foreground lg:hidden">
+            AI coach, not a doctor. It can make mistakes. In an emergency, call 911 or 988.
+          </p>
+        </form>
       </section>
+
+      {inCall ? (
+        <CoachCall
+          connecting={connecting}
+          startedAt={callStartedAt}
+          coach={coach}
+          state={avatarState}
+          statusLine={statusLine}
+          caption={voice.caption}
+          face={voice.face}
+          listen={handsFree.listenLevel}
+          muted={handsFree.muted}
+          speaking={Boolean(voice.speakingId)}
+          messages={messages}
+          status={status}
+          crisis={crisis}
+          onMute={handsFree.setMuted}
+          onStopTalking={() => {
+            voice.stop();
+            handsFree.resume();
+          }}
+          onEnd={endHandsFree}
+          onHelp={() => setSheet("help")}
+        />
+      ) : null}
 
       <HistorySheet
         open={sheet === "history"}

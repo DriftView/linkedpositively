@@ -34,7 +34,7 @@ Code: `src/features/ai-coach/`. Database: `src/server/db/schema/ai.ts`, migratio
    - Runs in parallel with the reply, rating the latest message (with up to 3 earlier ones) as none, support, elevated or urgent.
    - Catches indirect wording the keywords miss.
    - The reply isn't finalised until the classifier has finished.
-4. **The reply.** Claude Opus 5.5 (`claude-opus-5-5`) at effort `medium` with:
+4. **The reply.** Claude Opus 5.5 (`claude-opus-5-5`) at effort `medium` (`low` for voice turns, so speech starts sooner) with:
    - the static system prompt (`prompt.ts`, cached);
    - the full stored conversation (tool calls and thinking blocks included, never edited);
    - four tools (`tools.ts`):
@@ -192,7 +192,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 ELEVENLABS_API_KEY=...
 # Optional voice choice:
 ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
-ELEVENLABS_MODEL_ID=eleven_multilingual_v2
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
 ```
 
 Each member's coach voice comes from `COACH_VOICES` in `coach-design.ts`; `ELEVENLABS_VOICE_ID` is only a fallback. For the fastest spoken replies (hands-free chat), consider `ELEVENLABS_MODEL_ID=eleven_flash_v2_5`: it costs less and starts sooner, with slightly less expressive speech.
