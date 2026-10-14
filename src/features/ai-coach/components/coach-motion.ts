@@ -1,7 +1,7 @@
 import type { Viseme } from "../voice-lib";
 
 /**
- * How the coach moves, shared by the 2D (SVG) and 3D avatars: breathing, a
+ * How the coach moves (the SVG avatar in coach-avatar.tsx): breathing, a
  * slow head sway, natural blinks and glances, nods while the member talks,
  * brows that lift with emphasis, and a mouth that follows the voice's visemes
  * and loudness. `step` is called once per animation frame and returns a pose;

@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import type { AiCoachAppearance } from "@/server/db/schema/ai";
 import { cn } from "@/lib/utils";
 import { coachEyeColor, HAIR_COLORS, OUTFIT_COLORS, SKIN_TONES } from "../coach-design";
-import type { CoachScene } from "./coach-avatar-3d";
 import { createCoachMotion, MOUTH, type CoachFace, type CoachState } from "./coach-motion";
 import "./coach-avatar.css";
 
@@ -32,164 +31,6 @@ type CoachAvatarProps = {
   className?: string;
 };
 
-/** Below this size (chat bubbles, thumbnails) the 2D drawing reads better and costs nothing. */
-const MIN_3D_SIZE = 100;
-
-/**
- * The animated AI Coach, drawn from the member's design (no vendor, works
- * offline). Large live avatars are 3D (three.js, loaded on demand); small and
- * `still` ones (thumbnails) are SVG, which is also shown while 3D loads and
- * whenever WebGL isn't available. Both move the same way (coach-motion.ts).
- */
-export function CoachAvatar(props: CoachAvatarProps) {
-  const { size = 96, still = false } = props;
-  if (still || size < MIN_3D_SIZE) return <CoachAvatar2D {...props} />;
-  return <CoachAvatar3D {...props} />;
-}
-
-function CoachAvatar3D({ appearance, name, state, face, listen, size = 96, className }: CoachAvatarProps) {
-  const [failed, setFailed] = useState(false);
-  const [ready, setReady] = useState(false);
-  const hostRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<CoachScene | null>(null);
-  const stateRef = useRef(state);
-  const appearanceRef = useRef(appearance);
-  const sizeRef = useRef(size);
-  const appearanceKey = JSON.stringify(appearance);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-  useEffect(() => {
-    appearanceRef.current = JSON.parse(appearanceKey) as AiCoachAppearance;
-    sceneRef.current?.setAppearance(appearanceRef.current);
-  }, [appearanceKey]);
-  useEffect(() => {
-    sizeRef.current = size;
-    sceneRef.current?.setSize(size);
-  }, [size]);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host || failed) return;
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    const motion = createCoachMotion({ reduced });
-    let scene: CoachScene | null = null;
-    let canvas: HTMLCanvasElement | null = null;
-    let starting = false;
-    let cancelled = false;
-    let onScreen = true;
-    let frame = 0;
-
-    const stop = () => {
-      cancelAnimationFrame(frame);
-      canvas?.removeEventListener("webglcontextlost", fail);
-      scene?.dispose();
-      canvas?.remove();
-      scene = null;
-      canvas = null;
-      sceneRef.current = null;
-      if (!cancelled) setReady(false);
-    };
-    function fail() {
-      stop();
-      if (!cancelled) setFailed(true);
-    }
-    const tick = (now: number) => {
-      frame = requestAnimationFrame(tick);
-      if (!scene || !onScreen) return;
-      const pose = motion.step(now, stateRef.current, face?.current, listen?.current ?? 0);
-      scene.render(pose, stateRef.current);
-    };
-    // A scene (and its WebGL context) exists only while this copy is laid out:
-    // the page renders one per layout and hides the others.
-    const start = async () => {
-      if (scene || starting) return;
-      starting = true;
-      try {
-        const { createCoachScene } = await import("./coach-avatar-3d");
-        if (cancelled || host.clientWidth === 0) return;
-        canvas = document.createElement("canvas");
-        canvas.className = "block size-full";
-        canvas.addEventListener("webglcontextlost", fail);
-        host.appendChild(canvas);
-        scene = createCoachScene(canvas, appearanceRef.current);
-        scene.setSize(sizeRef.current);
-        sceneRef.current = scene;
-        setReady(true);
-        frame = requestAnimationFrame(tick);
-      } catch {
-        fail();
-      } finally {
-        starting = false;
-      }
-    };
-
-    const resize = new ResizeObserver(() => {
-      if (host.clientWidth > 0) void start();
-      else stop();
-    });
-    resize.observe(host);
-    const intersection = new IntersectionObserver(([entry]) => {
-      onScreen = entry?.isIntersecting ?? true;
-    });
-    intersection.observe(host);
-    // Outfit colors follow the theme (light/dark).
-    const theme = new MutationObserver(() => scene?.refreshColors());
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
-
-    return () => {
-      cancelled = true;
-      resize.disconnect();
-      intersection.disconnect();
-      theme.disconnect();
-      stop();
-    };
-  }, [face, listen, failed]);
-
-  const shown = ready && !failed;
-  return (
-    <div
-      role="img"
-      aria-label={avatarLabel(name, state)}
-      data-state={state}
-      style={{ width: size, height: size }}
-      className={cn("coach-avatar relative shrink-0 select-none", className)}
-    >
-      {shown ? (
-        <svg viewBox="0 0 200 200" aria-hidden className="absolute inset-0 size-full overflow-visible">
-          <circle
-            className="coach-ring"
-            cx="100"
-            cy="100"
-            r="96"
-            fill="none"
-            stroke="var(--brand-sky)"
-            strokeWidth="6"
-          />
-          <circle cx="100" cy="100" r="96" fill="var(--secondary)" />
-        </svg>
-      ) : (
-        <CoachAvatar2D
-          appearance={appearance}
-          name={name}
-          state={state}
-          face={face}
-          listen={listen}
-          size={size}
-          decorative
-          className="absolute inset-0"
-        />
-      )}
-      <div ref={hostRef} className={cn("absolute inset-[2%] overflow-hidden rounded-full", !shown && "invisible")} />
-      {shown && state === "thinking" ? (
-        <svg viewBox="0 0 200 200" aria-hidden className="pointer-events-none absolute inset-0 size-full">
-          <ThinkingDots />
-        </svg>
-      ) : null}
-    </div>
-  );
-}
-
 function avatarLabel(name: string, state: CoachState) {
   return `${name}, your AI coach${state === "idle" ? "" : `, ${state}`}`;
 }
@@ -205,12 +46,13 @@ function ThinkingDots() {
 }
 
 /**
- * The coach as an illustrated SVG character. One animation loop moves it;
+ * The animated AI Coach, drawn from the member's design as an illustrated SVG
+ * character (no vendor, works offline). One animation loop moves it;
  * idle motion stops under prefers-reduced-motion, the mouth still follows
  * speech. `still` draws a static picture (thumbnails); `decorative` hides it
  * from assistive tech when a wrapper already labels it.
  */
-function CoachAvatar2D({
+export function CoachAvatar({
   appearance,
   name,
   state,
