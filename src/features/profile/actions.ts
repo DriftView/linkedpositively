@@ -7,6 +7,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth/auth";
 import { authedAction, UserFacingError } from "@/server/actions/safe-action";
 import { hasPermission } from "@/server/auth/roles";
+import { getRequestAuth } from "@/server/auth/session";
 import { db, withTransaction } from "@/server/db/client";
 import { accounts, profiles, users, type NewProfile } from "@/server/db/schema";
 import { logger } from "@/server/logger";
@@ -224,7 +225,8 @@ export const updateAccount = authedAction.inputSchema(accountSchema).action(asyn
   if (emailChanged) logger.info({ userId: viewer.id }, "account email changed");
 
   // Refresh the cached session so the header and timezone update right away.
-  await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } }).catch(() => null);
+  const requestAuth = await getRequestAuth();
+  await requestAuth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } }).catch(() => null);
   revalidatePath("/", "layout");
   return { emailChanged, phone: phone ?? null };
 });
@@ -243,6 +245,7 @@ export const updatePeerNavProfile = authedAction.inputSchema(peerNavProfileSchem
   await upsertProfile(ctx.viewer.id, set);
   await trackUsage(ctx.viewer.id, "profile_edit", { field: "peerNav" });
   revalidatePath("/settings");
+  revalidatePath("/account");
   return { saved: true };
 });
 

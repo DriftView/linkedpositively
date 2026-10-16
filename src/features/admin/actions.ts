@@ -1,15 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizePhone } from "@/features/sms/phone";
 import { ensureSchedule } from "@/features/sms/service";
+import type { Portal } from "@/lib/portal";
 import { authedAction, permissionAction, UserFacingError } from "@/server/actions/safe-action";
 import { createAccount } from "@/server/auth/accounts";
-import { auth } from "@/server/auth/auth";
-import { parseRoles, type Role } from "@/server/auth/roles";
+import { memberAuth, staffAuth } from "@/server/auth/auth";
+import { parseRoles, portalForRoles, type Role } from "@/server/auth/roles";
 import { db, withTransaction } from "@/server/db/client";
 import { profiles, users } from "@/server/db/schema";
 import { logger } from "@/server/logger";
@@ -332,6 +333,54 @@ export const sendAccountLinkAction = permissionAction("users.edit")
     return { ok: true };
   });
 
+/**
+ * Starts Better Auth impersonation in the portal the viewed person signs in to.
+ * Viewing a participant signs the member portal in as them and leaves the
+ * admin's staff session as it is (the staff tab keeps working). Better Auth
+ * checks the admin's session from the member portal's cookie name, so the
+ * staff session token is handed over under that name for this one call.
+ */
+async function startImpersonating(userId: string, portal: Portal) {
+  const requestHeaders = await headers();
+  if (portal === "staff") {
+    await staffAuth.api.impersonateUser({ body: { userId }, headers: requestHeaders });
+    return;
+  }
+  const [staffCookie, memberCookie] = await Promise.all([staffAuth.$context, memberAuth.$context]).then((contexts) =>
+    contexts.map((context) => context.authCookies.sessionToken.name),
+  );
+  const token = rawCookie(requestHeaders.get("cookie"), staffCookie);
+  if (!token) throw new UserFacingError("Please sign in again.");
+  const asMember = new Headers(requestHeaders);
+  asMember.set("cookie", `${memberCookie}=${token}`);
+  await memberAuth.api.impersonateUser({ body: { userId }, headers: asMember });
+}
+
+/**
+ * Ends impersonation. In the member portal this just signs the viewed session
+ * out (the admin is still signed in to the staff portal); Better Auth's own
+ * "stop" would move the admin's session into the member cookie.
+ */
+async function endImpersonating(portal: Portal) {
+  const requestHeaders = await headers();
+  if (portal === "staff") {
+    await staffAuth.api.stopImpersonating({ headers: requestHeaders });
+    return;
+  }
+  await memberAuth.api.signOut({ headers: requestHeaders });
+  const adminCookie = (await memberAuth.$context).createAuthCookie("admin_session");
+  const { path, secure, domain } = adminCookie.attributes;
+  (await cookies()).set(adminCookie.name, "", { path, secure, domain, httpOnly: true, maxAge: 0 });
+}
+
+function rawCookie(header: string | null, name: string) {
+  for (const part of header?.split(";") ?? []) {
+    const index = part.indexOf("=");
+    if (index > 0 && part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
+  }
+  return null;
+}
+
 /** Admin-only "view as" (legacy Masquerade), through Better Auth impersonation. */
 export const impersonateAction = permissionAction("users.impersonate")
   .inputSchema(userIdSchema)
@@ -343,7 +392,7 @@ export const impersonateAction = permissionAction("users.impersonate")
     const roles = parseRoles(target.role);
     if (roles.includes("admin")) throw new UserFacingError("Administrators can't be impersonated.");
     if (target.banned) throw new UserFacingError("This account is deactivated. Reactivate it to view the app as them.");
-    await auth.api.impersonateUser({ body: { userId: parsedInput.userId }, headers: await headers() });
+    await startImpersonating(parsedInput.userId, portalForRoles(roles));
     await audit({
       actor: ctx.viewer,
       action: "user.impersonate",
@@ -365,7 +414,7 @@ export const stopImpersonatingAction = authedAction.action(async ({ ctx }) => {
   const adminId = ctx.viewer.impersonatedBy;
   if (!adminId) return { destination: "/admin" };
   const viewedId = ctx.viewer.id;
-  await auth.api.stopImpersonating({ headers: await headers() });
+  await endImpersonating(portalForRoles(ctx.viewer.roles));
   await audit({
     actor: { id: adminId, impersonatedBy: null },
     action: "user.impersonateStop",

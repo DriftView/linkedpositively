@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, CircleAlert, CircleCheck, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { authClient } from "@/lib/auth-client";
+import { announceAuthChange } from "@/lib/auth-client";
+import type { Portal } from "@/lib/portal";
 import { cn } from "@/lib/utils";
 
 export function LoginForm({ next, passwordWasReset }: { next: string; passwordWasReset: boolean }) {
-  const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,26 +24,30 @@ export function LoginForm({ next, passwordWasReset }: { next: string; passwordWa
     setPending(true);
     setError(null);
 
-    const login = identifier.trim();
-    const result = login.includes("@")
-      ? await authClient.signIn.email({ email: login, password })
-      : await authClient.signIn.username({ username: login, password });
+    // Signs in to the staff or member portal, whichever the account belongs to.
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ identifier: identifier.trim(), password, next }),
+    }).catch(() => null);
+    const result = (await response?.json().catch(() => null)) as { portal?: Portal; destination?: string; message?: string | null } | null;
 
-    if (result.error) {
+    if (!response?.ok || !result?.destination || !result.portal) {
       setPending(false);
       setFailedOnce(true);
-      const status = result.error.status;
+      const status = response?.status;
       setError(
         status === 429
           ? "Too many attempts. Please wait a minute and try again."
-          : status === 403 && result.error.message
-            ? result.error.message
+          : status === 403 && result?.message
+            ? result.message
             : "That username or password doesn't match. Please try again.",
       );
       return;
     }
-    router.replace(next);
-    router.refresh();
+    announceAuthChange(result.portal);
+    // A full load, so the new session's pages aren't mixed with cached ones.
+    window.location.assign(result.destination);
   }
 
   return (

@@ -8,6 +8,7 @@ import { admin, username } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import { after } from "next/server";
 import { env } from "@/env";
+import { PORTAL_AUTH_PATH, PORTAL_COOKIE_PREFIX, type Portal } from "@/lib/portal";
 import { db } from "@/server/db/client";
 import { accounts, rateLimits, sessions, users, verifications } from "@/server/db/schema";
 import { logger } from "@/server/logger";
@@ -40,119 +41,137 @@ const DISABLED_AUTH_PATHS = [
   "/admin/has-permission",
 ];
 
-export const auth = betterAuth({
-  appName: "Link Positively",
-  baseURL: env.BETTER_AUTH_URL,
-  secret: env.BETTER_AUTH_SECRET,
-  database: drizzleAdapter(db, {
-    provider: "pg",
-    schema: { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits },
-  }),
-
-  // HTTP endpoints the app doesn't use. Profile and account edits go through
-  // our Server Actions (which validate, check ownership and audit); left open,
-  // /update-user would let anyone rename their login username or set any
-  // image URL, and /is-username-available would reveal who is in the study.
-  // Staff tools call the admin endpoints server-side (auth.api) after our own
-  // permission checks and audit logging, so only "stop impersonating" stays.
-  disabledPaths: DISABLED_AUTH_PATHS,
-
-  emailAndPassword: {
-    enabled: true,
-    // Accounts are created by staff (Drupal: admin-only registration).
-    disableSignUp: true,
-    minPasswordLength: 8,
-    revokeSessionsOnPasswordReset: true,
-    resetPasswordTokenExpiresIn: 60 * 60 * 24,
-    password: {
-      hash: (password) => hashPassword(password),
-      // Migrated accounts keep their Drupal hash until their first sign-in,
-      // when the hook below replaces it with a modern one.
-      verify: async ({ hash, password }) =>
-        isDrupalHash(hash) ? verifyDrupalPassword(password, hash) : verifyPassword({ hash, password }),
-    },
-    sendResetPassword: async ({ user, url }) => {
-      await sendMail({
-        to: user.email,
-        subject: "Reset your Link Positively password",
-        template: ResetPasswordEmail({ url, name: user.name }),
-        ref: `reset:${user.id}`,
-      });
-    },
-  },
-
-  user: {
-    additionalFields: {
-      timezone: { type: "string", required: false, input: false, defaultValue: "America/New_York" },
-      programs: { type: "string[]", required: false, input: false, defaultValue: ["lp"] },
-      legacy: { type: "json", required: false, input: false },
-    },
-  },
-
-  session: {
-    expiresIn: 60 * 60 * 24 * SESSION_DAYS,
-    updateAge: 60 * 60 * 24,
-    // Roles and bans are re-read at least every minute.
-    cookieCache: { enabled: true, maxAge: 60 },
-  },
-
-  rateLimit: {
-    enabled: true,
-    storage: "database",
-    window: 60,
-    max: 100,
-    customRules: {
-      "/sign-in/*": { window: 60, max: 8 },
-      "/request-password-reset": { window: 60 * 15, max: 5 },
-    },
-  },
-
-  advanced: {
-    cookiePrefix: "lp",
-    useSecureCookies: env.NODE_ENV === "production",
-    // Ids are Postgres uuids (crypto.randomUUID), like every other table.
-    database: { generateId: "uuid" },
-  },
-
-  plugins: [
-    username({
-      minUsernameLength: 2,
-      maxUsernameLength: 60,
-      // Drupal usernames may contain spaces, dots, @, apostrophes and hyphens.
-      usernameValidator: (value) => /^[\p{L}\p{N} ._@'-]+$/u.test(value),
+/**
+ * One Better Auth instance per portal (src/lib/portal.ts). They share the
+ * database and secret but use their own endpoint and cookie prefix, so the
+ * staff and member sessions in a browser never overwrite each other.
+ */
+function createAuth(portal: Portal) {
+  return betterAuth({
+    appName: "Link Positively",
+    baseURL: env.BETTER_AUTH_URL,
+    basePath: PORTAL_AUTH_PATH[portal],
+    secret: env.BETTER_AUTH_SECRET,
+    database: drizzleAdapter(db, {
+      provider: "pg",
+      schema: { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits },
     }),
-    admin({
-      defaultRole: "control",
-      adminRoles: ["admin"],
-      impersonationSessionDuration: 60 * 60,
-      bannedUserMessage:
-        "This account has been deactivated. Please contact the study team if you think this is a mistake.",
-    }),
-    nextCookies(),
-  ],
 
-  hooks: {
-    // Bookkeeping runs after the response is sent (next/server `after`), so
-    // its database round trips don't hold up signing in or out.
-    after: createAuthMiddleware(async (ctx) => {
-      if (ctx.path.startsWith("/sign-in/")) {
-        const session = ctx.context.newSession;
-        if (!session) return;
-        const userId = session.user.id;
-        const password = (ctx.body as { password?: string } | undefined)?.password;
-        const userAgent = ctx.headers?.get("user-agent") ?? "";
-        after(async () => {
-          await upgradeLegacyPassword(userId, password);
-          await onSignIn(userId, userAgent);
+    // HTTP endpoints the app doesn't use. Profile and account edits go through
+    // our Server Actions (which validate, check ownership and audit); left open,
+    // /update-user would let anyone rename their login username or set any
+    // image URL, and /is-username-available would reveal who is in the study.
+    // Staff tools call the admin endpoints server-side (auth.api) after our own
+    // permission checks and audit logging, so only "stop impersonating" stays.
+    disabledPaths: DISABLED_AUTH_PATHS,
+
+    emailAndPassword: {
+      enabled: true,
+      // Accounts are created by staff (Drupal: admin-only registration).
+      disableSignUp: true,
+      minPasswordLength: 8,
+      revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: 60 * 60 * 24,
+      password: {
+        hash: (password) => hashPassword(password),
+        // Migrated accounts keep their Drupal hash until their first sign-in,
+        // when the hook below replaces it with a modern one.
+        verify: async ({ hash, password }) =>
+          isDrupalHash(hash) ? verifyDrupalPassword(password, hash) : verifyPassword({ hash, password }),
+      },
+      sendResetPassword: async ({ user, url }) => {
+        await sendMail({
+          to: user.email,
+          subject: "Reset your Link Positively password",
+          template: ResetPasswordEmail({ url, name: user.name }),
+          ref: `reset:${user.id}`,
         });
-      }
-      if (ctx.path === "/sign-out") {
-        const userId = ctx.context.session?.user.id;
-        if (userId) after(() => onSignOut(userId));
-      }
-    }),
-  },
-});
+      },
+    },
+
+    user: {
+      additionalFields: {
+        timezone: { type: "string", required: false, input: false, defaultValue: "America/New_York" },
+        programs: { type: "string[]", required: false, input: false, defaultValue: ["lp"] },
+        legacy: { type: "json", required: false, input: false },
+      },
+    },
+
+    session: {
+      expiresIn: 60 * 60 * 24 * SESSION_DAYS,
+      updateAge: 60 * 60 * 24,
+      // Roles and bans are re-read at least every minute.
+      cookieCache: { enabled: true, maxAge: 60 },
+    },
+
+    rateLimit: {
+      enabled: true,
+      storage: "database",
+      window: 60,
+      max: 100,
+      customRules: {
+        "/sign-in/*": { window: 60, max: 8 },
+        "/request-password-reset": { window: 60 * 15, max: 5 },
+      },
+    },
+
+    advanced: {
+      cookiePrefix: PORTAL_COOKIE_PREFIX[portal],
+      useSecureCookies: env.NODE_ENV === "production",
+      // Ids are Postgres uuids (crypto.randomUUID), like every other table.
+      database: { generateId: "uuid" },
+    },
+
+    plugins: [
+      username({
+        minUsernameLength: 2,
+        maxUsernameLength: 60,
+        // Drupal usernames may contain spaces, dots, @, apostrophes and hyphens.
+        usernameValidator: (value) => /^[\p{L}\p{N} ._@'-]+$/u.test(value),
+      }),
+      admin({
+        defaultRole: "control",
+        adminRoles: ["admin"],
+        impersonationSessionDuration: 60 * 60,
+        bannedUserMessage:
+          "This account has been deactivated. Please contact the study team if you think this is a mistake.",
+      }),
+      nextCookies(),
+    ],
+
+    hooks: {
+      // Bookkeeping runs after the response is sent (next/server `after`), so
+      // its database round trips don't hold up signing in or out.
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path.startsWith("/sign-in/")) {
+          const session = ctx.context.newSession;
+          if (!session) return;
+          const userId = session.user.id;
+          const password = (ctx.body as { password?: string } | undefined)?.password;
+          const userAgent = ctx.headers?.get("user-agent") ?? "";
+          after(async () => {
+            await upgradeLegacyPassword(userId, password);
+            await onSignIn(userId, userAgent);
+          });
+        }
+        if (ctx.path === "/sign-out") {
+          const userId = ctx.context.session?.user.id;
+          if (userId) after(() => onSignOut(userId));
+        }
+      }),
+    },
+  });
+}
+
+export const memberAuth = createAuth("member");
+export const staffAuth = createAuth("staff");
+
+/** For server-side calls that don't involve a session cookie (account creation, password resets). */
+export const auth = memberAuth;
+
+export function authFor(portal: Portal) {
+  return portal === "staff" ? staffAuth : memberAuth;
+}
 
 /** Replaces a Drupal password hash with a modern one after a successful sign-in. */
 async function upgradeLegacyPassword(userId: string, password: string | undefined) {

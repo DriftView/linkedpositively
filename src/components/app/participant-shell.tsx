@@ -12,6 +12,8 @@ import { ImpersonationBanner } from "@/features/admin/components/impersonation-b
 import { NavIcon } from "./nav-icon";
 import { PageViewBeacon } from "./page-view-beacon";
 import type { NavItem } from "./nav-types";
+import { PortalContext } from "./portal-context";
+import { SessionGuard } from "./session-guard";
 import { UserMenu, type ShellUser } from "./user-menu";
 import { NotificationBell } from "./notification-bell";
 import { SearchButton } from "./search-button";
@@ -26,7 +28,7 @@ function isActive(pathname: string, href: string) {
  * screens and a thumb-friendly tab bar on phones. Content sits in a
  * comfortable reading column.
  */
-export function ParticipantShell({
+function ParticipantShellBody({
   nav,
   user,
   unread,
@@ -200,5 +202,15 @@ function MobileTabBar({ primary, more, pathname }: { primary: NavItem[]; more: N
         </li>
       </ul>
     </nav>
+  );
+}
+
+/** Every ParticipantShell page is in the member portal (src/lib/portal.ts). */
+export function ParticipantShell(props: React.ComponentProps<typeof ParticipantShellBody>) {
+  return (
+    <PortalContext value="member">
+      <SessionGuard userId={props.user.id} />
+      <ParticipantShellBody {...props} />
+    </PortalContext>
   );
 }

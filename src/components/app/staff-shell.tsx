@@ -24,6 +24,8 @@ import { NavIcon } from "./nav-icon";
 import { PageViewBeacon } from "./page-view-beacon";
 import type { NavGroup } from "./nav-types";
 import { NotificationBell } from "./notification-bell";
+import { PortalContext } from "./portal-context";
+import { SessionGuard } from "./session-guard";
 import { UserMenu, type ShellUser } from "./user-menu";
 
 function isActive(pathname: string, href: string) {
@@ -32,7 +34,7 @@ function isActive(pathname: string, href: string) {
 }
 
 /** Layout for study staff and peer navigators: collapsible sidebar + wide content. */
-export function StaffShell({
+function StaffShellBody({
   groups,
   user,
   unread,
@@ -95,11 +97,21 @@ export function StaffShell({
           <Separator orientation="vertical" className="mr-1 data-[orientation=vertical]:h-5" />
           <div className="ml-auto flex items-center gap-1">
             {bellHref ? <NotificationBell unread={unread} href={bellHref} /> : null}
-            <UserMenu user={user} profileHref="/settings" />
+            <UserMenu user={user} profileHref="/account" />
           </div>
         </header>
         <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+/** Every StaffShell page is in the staff portal (src/lib/portal.ts). */
+export function StaffShell(props: React.ComponentProps<typeof StaffShellBody>) {
+  return (
+    <PortalContext value="staff">
+      <SessionGuard userId={props.user.id} />
+      <StaffShellBody {...props} />
+    </PortalContext>
   );
 }

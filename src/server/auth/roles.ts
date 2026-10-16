@@ -9,6 +9,8 @@
  * Legacy role mapping (both sites) lives in LEGACY_ROLE_MAP for the migration.
  */
 
+import type { Portal } from "@/lib/portal";
+
 export const ROLES = [
   "admin",
   "research_admin",
@@ -91,7 +93,9 @@ const PARTICIPANT: Permission[] = [
   "ai.chat",
 ];
 
-const STAFF_BASE: Permission[] = ["admin.access", "users.view", "lp.access", "tips.view", "resources.view", "ai.chat"];
+// Staff work in the staff portal only; the participant app (lp.access, tips,
+// resources, the AI Coach) is for participants. Staff see it by impersonating.
+const STAFF_BASE: Permission[] = ["admin.access", "users.view"];
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   admin: [...PERMISSIONS],
@@ -183,6 +187,14 @@ export function hasPermission(roles: Role[], permission: Permission) {
 
 export function isStaff(roles: Role[]) {
   return roles.some((role) => STAFF_ROLES.includes(role));
+}
+
+/**
+ * The portal an account signs in to (src/lib/portal.ts). A staff role wins
+ * over any participant role the account also holds.
+ */
+export function portalForRoles(roles: readonly Role[]): Portal {
+  return roles.some((role) => STAFF_ROLES.includes(role)) ? "staff" : "member";
 }
 
 /** The most descriptive role, for display. */

@@ -9,7 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { authClient } from "@/lib/auth-client";
+import { usePortal } from "@/components/app/portal-context";
+import { authClientFor } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Field } from "./account-form";
 
@@ -20,6 +21,7 @@ const MIN = 8;
  * (docs/legacy/03 §14.4). Other devices are signed out by default.
  */
 export function PasswordForm() {
+  const portal = usePortal();
   const router = useRouter();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -43,7 +45,7 @@ export function PasswordForm() {
     if (next !== confirm) return setError({ field: "confirm", message: "Passwords do not match!" });
     setError(null);
     setPending(true);
-    const { error: failure } = await authClient.changePassword({
+    const { error: failure } = await authClientFor(portal).changePassword({
       currentPassword: current,
       newPassword: next,
       revokeOtherSessions: revokeOthers,

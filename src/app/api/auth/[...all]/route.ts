@@ -1,4 +1,5 @@
 import { toNextJsHandler } from "better-auth/next-js";
-import { auth } from "@/server/auth/auth";
+import { memberAuth } from "@/server/auth/auth";
 
-export const { GET, POST } = toNextJsHandler(auth);
+/** Better Auth endpoints for the member portal (the staff portal's are at /api/staff-auth). */
+export const { GET, POST } = toNextJsHandler(memberAuth);

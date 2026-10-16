@@ -1,17 +1,15 @@
 import { ParticipantShell } from "@/components/app/participant-shell";
-import { StaffShell } from "@/components/app/staff-shell";
 import { ColorThemeScope } from "@/features/gamification/components/color-theme-scope";
 import { LevelUpGate } from "@/features/gamification/components/level-up-gate";
 import { getColorThemeFor } from "@/features/gamification/queries";
 import { getShellCounts } from "@/features/notifications/counts";
 import { can, requireViewer } from "@/server/auth/session";
-import { coachingNav, participantNav, staffNav } from "@/server/nav";
+import { coachingNav, participantNav } from "@/server/nav";
 
 /**
- * Account pages (/settings) work for every signed-in person, inside the shell
- * they normally use: staff and peer navigators get the staff workspace, Link
- * Positively members the participant app, Peer Navigation-only participants
- * the coaching area.
+ * Account pages (/settings) for the member portal, inside the shell they
+ * normally use: Link Positively members get the participant app, Peer
+ * Navigation-only participants the coaching area. Staff have /account.
  */
 export default async function AccountLayout({ children }: LayoutProps<"/">) {
   const viewer = await requireViewer();
@@ -24,19 +22,6 @@ export default async function AccountLayout({ children }: LayoutProps<"/">) {
     roleLabel: viewer.roleLabel,
     impersonating: Boolean(viewer.impersonatedBy),
   };
-
-  if (viewer.staff && can(viewer, "admin.access")) {
-    return (
-      <StaffShell
-        groups={staffNav(viewer, counts)}
-        unread={counts.unreadMessages}
-        bellHref={can(viewer, "peernav.messages") ? "/coach/messages" : undefined}
-        user={user}
-      >
-        <div className="mx-auto w-full max-w-3xl">{children}</div>
-      </StaffShell>
-    );
-  }
 
   if (can(viewer, "lp.access")) {
     return (

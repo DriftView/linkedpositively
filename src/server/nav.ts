@@ -85,13 +85,11 @@ export function staffNav(viewer: Viewer, counts: { aiAlerts?: number } = {}): Na
   add("Community", [
     can(viewer, "moderation.review") && { href: "/admin/moderation", label: "Moderation", icon: "flag" },
     can(viewer, "support.manage") && { href: "/admin/support", label: "Tech support", icon: "support" },
-    can(viewer, "lp.access") && { href: "/", label: "Open the app", icon: "external" },
   ]);
   add("AI Coach", [
     (can(viewer, "ai.review") || can(viewer, "reports.view")) && { href: "/admin/ai", label: "Overview", icon: "ai" },
     can(viewer, "ai.review") && { href: "/admin/ai/alerts", label: "Safety alerts", icon: "alert", badge: counts.aiAlerts },
     can(viewer, "content.manage") && { href: "/admin/ai/knowledge", label: "Knowledge", icon: "book" },
-    can(viewer, "ai.chat") && can(viewer, "lp.access") && { href: "/ai-coach", label: "Try the coach", icon: "external" },
   ]);
   add("Insights", [
     can(viewer, "reports.view") && { href: "/admin/reports", label: "Reports", icon: "chart" },

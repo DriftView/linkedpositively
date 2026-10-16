@@ -2,10 +2,9 @@ import "server-only";
 import { headers } from "next/headers";
 import { cache } from "react";
 import { and, eq, isNull, ne, or } from "drizzle-orm";
-import { auth } from "@/server/auth/auth";
 import { db } from "@/server/db/client";
 import { hasPermission, parseRoles } from "@/server/auth/roles";
-import { can, type Viewer } from "@/server/auth/session";
+import { can, getRequestAuth, type Viewer } from "@/server/auth/session";
 import { profiles, users } from "@/server/db/schema";
 import { badgeById, effectiveColorTheme, type ColorThemeId } from "@/features/gamification/catalog";
 import { levelForPoints } from "@/features/gamification/levels";
@@ -206,7 +205,7 @@ export function describeUserAgent(ua: string): { device: string; kind: "phone" |
 export async function getSessions(): Promise<
   { id: string; device: string; kind: "phone" | "tablet" | "computer"; lastActive: string; current: boolean }[]
 > {
-  const requestHeaders = await headers();
+  const [requestHeaders, auth] = await Promise.all([headers(), getRequestAuth()]);
   const [sessions, current] = await Promise.all([
     auth.api.listSessions({ headers: requestHeaders }).catch(() => []),
     auth.api.getSession({ headers: requestHeaders }),

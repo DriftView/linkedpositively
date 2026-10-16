@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { authClient } from "@/lib/auth-client";
+import { usePortal } from "@/components/app/portal-context";
+import { authClientFor } from "@/lib/auth-client";
 import { shortAgo } from "@/lib/dates";
 
 export type SessionDto = { id: string; device: string; kind: "phone" | "tablet" | "computer"; lastActive: string; current: boolean };
@@ -26,6 +27,7 @@ const ICONS = { phone: Smartphone, tablet: Tablet, computer: Monitor };
 
 /** Where you're signed in, with "sign out everywhere else". */
 export function SessionsCard({ sessions: initial, timezone }: { sessions: SessionDto[]; timezone: string }) {
+  const portal = usePortal();
   const router = useRouter();
   const [sessions, setSessions] = useState(initial);
   const [pending, setPending] = useState(false);
@@ -35,7 +37,7 @@ export function SessionsCard({ sessions: initial, timezone }: { sessions: Sessio
 
   async function signOutOthers() {
     setPending(true);
-    const { error } = await authClient.revokeOtherSessions();
+    const { error } = await authClientFor(portal).revokeOtherSessions();
     setPending(false);
     if (error) return void toast.error("We couldn't sign out your other devices. Please try again.");
     setSessions((current) => current.filter((session) => session.current));

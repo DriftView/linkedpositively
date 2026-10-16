@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { LogOut, Monitor, Moon, Settings, Sun, UserRound, VenetianMask } from "lucide-react";
 import { toast } from "sonner";
@@ -19,8 +18,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { authClient } from "@/lib/auth-client";
+import { stopImpersonatingAction } from "@/features/admin/actions";
+import { announceAuthChange, authClientFor } from "@/lib/auth-client";
 import { initials } from "@/lib/initials";
+import { usePortal } from "./portal-context";
 
 export type ShellUser = {
   id: string;
@@ -32,20 +33,22 @@ export type ShellUser = {
 };
 
 export function UserMenu({ user, profileHref = "/profile" }: { user: ShellUser; profileHref?: string }) {
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const portal = usePortal();
 
   async function signOut() {
-    await authClient.signOut();
-    router.replace("/login");
-    router.refresh();
+    await authClientFor(portal).signOut();
+    announceAuthChange(portal);
+    // A full load, so nothing from this account stays in the client cache.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign("/login");
   }
 
   async function stopImpersonating() {
-    const { error } = await authClient.admin.stopImpersonating();
-    if (error) return toast.error("Couldn't switch back. Please sign in again.");
-    router.replace("/admin/users");
-    router.refresh();
+    const result = await stopImpersonatingAction();
+    if (!result?.data) return toast.error("Couldn't switch back. Please sign in again.");
+    announceAuthChange(portal);
+    window.location.assign(result.data.destination);
   }
 
   return (
@@ -78,7 +81,7 @@ export function UserMenu({ user, profileHref = "/profile" }: { user: ShellUser; 
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/settings">
+          <Link href={portal === "staff" ? "/account" : "/settings"}>
             <Settings /> Settings
           </Link>
         </DropdownMenuItem>
