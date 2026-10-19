@@ -8,13 +8,13 @@ import {
   LifeBuoy,
   LocateFixed,
   Mic,
-  Palette,
   Plus,
   Send,
   Settings2,
   Square,
   ThumbsDown,
   ThumbsUp,
+  UserRound,
   Volume2,
   X,
 } from "lucide-react";
@@ -29,13 +29,15 @@ import { MAX_MESSAGE_LENGTH, STARTER_PROMPTS } from "../constants";
 import { speakableText } from "../prompt";
 import type { AiCards, AiPreferencesDTO, AiStreamEvent, ChatMessageDTO, ConversationSummaryDTO } from "../types";
 import { SpeechChunker } from "../voice-lib";
-import { CoachAvatar, type CoachState } from "./coach-avatar";
+import type { CoachState } from "./coach-avatar";
 import { CoachCall } from "./coach-call";
-import { CoachDesigner } from "./coach-designer";
+import { CoachPicker } from "./coach-picker";
+import { CoachPortrait } from "./coach-portrait";
 import { HelpSheet, HistorySheet, SettingsSheet } from "./coach-sheets";
 import { CoachMarkdown, CrisisCard, ReplyCards } from "./reply-cards";
 import { useCoachVoice } from "./use-coach-voice";
 import { useHandsFree } from "./use-hands-free";
+import { useVideoCoach } from "./use-video-coach";
 import { useVoiceInput } from "./use-voice-input";
 
 type Props = {
@@ -47,6 +49,8 @@ type Props = {
   preferences: AiPreferencesDTO;
   voiceEnabled: boolean;
   serverVoice: boolean;
+  /** The video coach (Anam) is available: it plays the coach in voice chat, and the coach's photo shows elsewhere. */
+  videoAvailable: boolean;
   aiAvailable: boolean;
   timezone: string;
   firstName: string;
@@ -72,7 +76,9 @@ type SendOptions = { viaVoice?: boolean; handsFree?: boolean };
  * POST /api/ai/chat (NDJSON, see types.ts AiStreamEvent); when the reply is
  * to be heard, it is spoken sentence by sentence as it streams. Hands-free
  * voice chat opens a full-screen call with the coach (coach-call.tsx): the
- * member just talks.
+ * member just talks. Where the video coach is available, a lifelike face plays
+ * the coach for the whole call (use-video-coach.ts); the drawn coach stands in
+ * when it isn't.
  */
 export function AiCoach(props: Props) {
   const router = useRouter();
@@ -87,8 +93,8 @@ export function AiCoach(props: Props) {
   const [liveCrisis, setLiveCrisis] = useState<"elevated" | "urgent" | null>(null);
   const [near, setNear] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
-  const [sheet, setSheet] = useState<"history" | "settings" | "help" | "designer" | null>(null);
-  const [designerKey, setDesignerKey] = useState(0);
+  const [sheet, setSheet] = useState<"history" | "settings" | "help" | "coach" | null>(null);
+  const [pickerKey, setPickerKey] = useState(0);
   const [connecting, setConnecting] = useState(false);
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -97,7 +103,8 @@ export function AiCoach(props: Props) {
   const resumeListeningRef = useRef<() => void>(() => undefined);
   const coach = resolveCoach(preferences.design);
   const onVoiceIdle = useCallback(() => resumeListeningRef.current(), []);
-  const voice = useCoachVoice({ pitch: coachVoice(coach.voice).pitch, onIdle: onVoiceIdle });
+  const video = useVideoCoach();
+  const voice = useCoachVoice({ pitch: coachVoice(coach.voice).pitch, onIdle: onVoiceIdle, video: video.sink });
   const crisis = liveCrisis ?? highestCrisis(messages);
 
   const scrollToEnd = useCallback(() => {
@@ -303,9 +310,19 @@ export function AiCoach(props: Props) {
   function endHandsFree() {
     handsFree.stop();
     voice.stop();
+    video.stop();
   }
 
   const inCall = connecting || handsFree.active;
+  // The video face joins as the call starts and leaves when it ends (the call
+  // can also end by itself when the mic times out). It pauses while the tab is
+  // hidden, and after a failure the drawn coach stays for the rest of the call.
+  const { status: videoStatus, failed: videoFailed, visible: pageVisible, start: startVideo, stop: stopVideo } = video;
+  const wantVideo = props.videoAvailable && inCall;
+  useEffect(() => {
+    if (wantVideo && pageVisible && videoStatus === "off" && !videoFailed) void startVideo();
+    else if (!wantVideo && (videoStatus !== "off" || videoFailed)) stopVideo();
+  }, [wantVideo, pageVisible, videoStatus, videoFailed, startVideo, stopVideo]);
   const hfPhase = handsFree.phase;
   const avatarState: CoachState =
     mic.state === "recording" || hfPhase === "listening" || hfPhase === "hearing"
@@ -373,9 +390,9 @@ export function AiCoach(props: Props) {
     [coach.name, props.firstName],
   );
 
-  function openDesigner() {
-    setDesignerKey((key) => key + 1);
-    setSheet("designer");
+  function openPicker() {
+    setPickerKey((key) => key + 1);
+    setSheet("coach");
   }
 
   const headerButtons = (
@@ -416,10 +433,10 @@ export function AiCoach(props: Props) {
       {/* Coach stage (desktop) */}
       <aside className="hidden lg:block">
         <div className="sticky top-20 flex flex-col items-center rounded-2xl border bg-card p-5 text-center shadow-soft">
-          <CoachAvatar
+          <CoachPortrait
             still={inCall}
-            appearance={coach.appearance}
-            name={coach.name}
+            coach={coach}
+            realistic={props.videoAvailable}
             state={avatarState}
             face={voice.face}
             listen={handsFree.listenLevel}
@@ -427,8 +444,8 @@ export function AiCoach(props: Props) {
           />
           <h1 className="mt-3 text-xl font-semibold">{coach.name}</h1>
           <p className="text-sm text-muted-foreground">Your AI coach</p>
-          <Button variant="ghost" size="sm" className="mt-1 h-8 rounded-full text-xs" onClick={openDesigner}>
-            <Palette aria-hidden /> Design your coach
+          <Button variant="ghost" size="sm" className="mt-1 h-8 rounded-full text-xs" onClick={openPicker}>
+            <UserRound aria-hidden /> Choose your coach
           </Button>
           <p className="mt-2 min-h-5 text-sm font-medium text-brand-plum dark:text-brand-sky" aria-live="polite">
             {statusLine}
@@ -454,10 +471,10 @@ export function AiCoach(props: Props) {
       >
         <header className="flex items-center gap-2 border-b px-2.5 py-2.5 sm:gap-3 sm:px-3 lg:px-4">
           <div className="lg:hidden">
-            <CoachAvatar
+            <CoachPortrait
               still={inCall}
-              appearance={coach.appearance}
-              name={coach.name}
+              coach={coach}
+              realistic={props.videoAvailable}
               state={avatarState}
               face={voice.face}
               listen={handsFree.listenLevel}
@@ -502,10 +519,10 @@ export function AiCoach(props: Props) {
           {empty && !handsFree.active ? (
             <div className="mx-auto flex max-w-md flex-col items-center py-6 text-center">
               <div className="lg:hidden">
-                <CoachAvatar
+                <CoachPortrait
                   still={inCall}
-                  appearance={coach.appearance}
-                  name={coach.name}
+                  coach={coach}
+                  realistic={props.videoAvailable}
                   state={avatarState}
                   face={voice.face}
                   listen={handsFree.listenLevel}
@@ -736,6 +753,7 @@ export function AiCoach(props: Props) {
           listen={handsFree.listenLevel}
           muted={handsFree.muted}
           speaking={Boolean(voice.speakingId)}
+          video={props.videoAvailable ? video : null}
           messages={messages}
           status={status}
           crisis={crisis}
@@ -762,16 +780,18 @@ export function AiCoach(props: Props) {
         onOpenChange={(open) => setSheet(open ? "settings" : null)}
         preferences={preferences}
         onChange={setPreferences}
-        onDesign={openDesigner}
+        onChooseCoach={openPicker}
         voiceEnabled={props.voiceEnabled}
+        realistic={props.videoAvailable}
       />
-      <CoachDesigner
-        key={designerKey}
-        open={sheet === "designer"}
-        onOpenChange={(open) => setSheet(open ? "designer" : null)}
+      <CoachPicker
+        key={pickerKey}
+        open={sheet === "coach"}
+        onOpenChange={(open) => setSheet(open ? "coach" : null)}
         design={preferences.design}
         onSaved={(design) => setPreferences((current) => ({ ...current, design }))}
         voiceEnabled={props.voiceEnabled}
+        realistic={props.videoAvailable}
       />
       <HelpSheet open={sheet === "help"} onOpenChange={(open) => setSheet(open ? "help" : null)} />
     </div>

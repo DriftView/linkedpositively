@@ -23,12 +23,16 @@ export type VideoStatus = "off" | "connecting" | "live";
  * The video coach (Anam): a lifelike face in place of the drawn
  * coach during a call. The server hands out a one-call session token; the
  * face lip-syncs the ElevenLabs audio we send it ("audio passthrough"), so it
- * never hears the member or writes replies. Any failure, or hiding the tab,
- * ends the video (so idle minutes aren't billed) and the drawn coach returns.
+ * never hears the member or writes replies. Hiding the tab ends the video (so
+ * idle minutes aren't billed); `visible` tells the caller when to start it
+ * again. A failure sets `failed` until the next `stop()`, and the drawn coach
+ * stands in.
  */
 export function useVideoCoach() {
   const videoId = `coach-video${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const [status, setStatus] = useState<VideoStatus>("off");
+  const [failed, setFailed] = useState(false);
+  const [visible, setVisible] = useState(true);
   const sink = useRef<VideoSink | null>(null);
   const clientRef = useRef<AnamClient | null>(null);
   const tokenRef = useRef(0);
@@ -40,11 +44,13 @@ export function useVideoCoach() {
     clientRef.current = null;
     if (client) void client.stopStreaming().catch(() => undefined);
     setStatus("off");
+    setFailed(false);
   }, []);
 
   const fail = useCallback(
-    (message = "Video stopped. You're back to the drawn coach.") => {
+    (message = "Video stopped. You can keep talking.") => {
       stop();
+      setFailed(true);
       toast.error(message);
     },
     [stop],
@@ -111,16 +117,18 @@ export function useVideoCoach() {
 
   // Hiding the tab ends the video: no one is watching, and minutes are billed.
   useEffect(() => {
-    const onHidden = () => {
-      if (document.visibilityState === "hidden" && clientRef.current) stop();
+    const onVisibility = () => {
+      const shown = document.visibilityState === "visible";
+      setVisible(shown);
+      if (!shown && clientRef.current) stop();
     };
-    document.addEventListener("visibilitychange", onHidden);
-    return () => document.removeEventListener("visibilitychange", onHidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [stop]);
 
   useEffect(() => stop, [stop]);
 
-  return { videoId, status, sink, start, stop };
+  return { videoId, status, failed, visible, sink, start, stop };
 }
 
 export type VideoCoach = ReturnType<typeof useVideoCoach>;

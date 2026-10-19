@@ -5,7 +5,7 @@ import type { AiCoachPronouns, AiCoachTone, AiReplyLength } from "@/server/db/sc
  * every member and every turn, so it is cached); everything about the member
  * goes into a context note attached to the first message of a conversation
  * (see buildMemberContext), which keeps the replayed history append-only.
- * The member's coach design (name, pronouns, tone, length) is a short second
+ * The member's chosen coach (name, pronouns) and style (tone, length) is a short second
  * system block after the cached one (buildPersona).
  * Pure: no server imports, unit-tested in prompt.test.ts.
  */
@@ -48,7 +48,7 @@ You complement the app's people and features. You never replace a peer navigator
 - Keep questions on topic. For unrelated requests, kindly say what you can help with.
 - Protect privacy: don't ask for full names, addresses, HIV status or other sensitive details unless the member needs to share them for the question, and don't repeat sensitive details back unnecessarily.
 - The member context note at the start of the conversation comes from the app. Use it to personalize gently (their first name now and then, their area for resources); never read it back as a list.
-- The member can design their coach: a name, pronouns, a tone and a reply length, given in the persona section after these instructions. Use that name and style. They change only how you sound: every rule above still applies, safety always comes first, and you are still an AI coach.`;
+- The member chooses their coach (a name and pronouns) and a tone and reply length, given in the persona section after these instructions. Use that name and style. They change only how you sound: every rule above still applies, safety always comes first, and you are still an AI coach.`;
 
 export type CoachPersona = { name: string; pronouns: AiCoachPronouns; tone: AiCoachTone; replyLength: AiReplyLength };
 
@@ -69,10 +69,10 @@ const LENGTH_TEXT: Record<AiReplyLength, string> = {
     "Give a little more detail when it helps: up to two short paragraphs or a short list, at the same reading level.",
 };
 
-/** The member's coach design as a system block. `name` is validated (letters and spaces only) before it gets here. */
+/** The member's chosen coach and style as a system block. The name comes from the fixed coach list (coach-design.ts). */
 export function buildPersona(persona: CoachPersona) {
   return [
-    "# Persona (the member's coach design)",
+    "# Persona (the member's chosen coach)",
     `- Your name is ${persona.name} and your pronouns are ${PRONOUN_TEXT[persona.pronouns]}. Use this name if you introduce yourself.`,
     `- Tone: ${TONE_TEXT[persona.tone]}`,
     `- Length: ${LENGTH_TEXT[persona.replyLength]}`,

@@ -58,31 +58,17 @@ export const savePreferencesAction = permissionAction("ai.chat")
     return { ok: true };
   });
 
-/**
- * Saves the member's coach design. The study sees which options were picked
- * (usage event); the coach's name is free text, so it is never logged.
- */
+/** Saves the member's coach and style. The study sees which were picked (usage event). */
 export const saveCoachDesignAction = permissionAction("ai.chat")
   .inputSchema(coachDesignSchema)
   .action(async ({ parsedInput: design, ctx: { viewer } }) => {
-    const values = {
-      look: design.look,
-      coachName: design.name,
-      coachPronouns: design.pronouns,
-      appearance: design.appearance,
-      voice: design.voice,
-      tone: design.tone,
-      replyLength: design.replyLength,
-    };
+    const values = { look: design.coachId, tone: design.tone, replyLength: design.replyLength };
     await db
       .insert(aiPreferences)
       .values({ userId: viewer.id, ...values })
       .onConflictDoUpdate({ target: aiPreferences.userId, set: { ...values, updatedAt: new Date() } });
     await trackUsage(viewer.id, "ai_coach_designed", {
-      look: design.look,
-      named: Boolean(design.name),
-      customLook: Boolean(design.appearance),
-      voice: design.voice ?? "preset",
+      coach: design.coachId,
       tone: design.tone,
       replyLength: design.replyLength,
     });

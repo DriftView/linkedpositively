@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LifeBuoy, MessageSquareText, Palette, Trash2 } from "lucide-react";
+import { LifeBuoy, MessageSquareText, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -15,7 +15,7 @@ import { hideConversationAction, savePreferencesAction } from "../actions";
 import { resolveCoach } from "../coach-design";
 import { CRISIS_LINES } from "../constants";
 import type { AiPreferencesDTO, ConversationSummaryDTO } from "../types";
-import { CoachAvatar } from "./coach-avatar";
+import { CoachPortrait } from "./coach-portrait";
 
 export function HistorySheet({
   open,
@@ -130,15 +130,18 @@ export function SettingsSheet({
   onOpenChange,
   preferences,
   onChange,
-  onDesign,
+  onChooseCoach,
   voiceEnabled,
+  realistic,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   preferences: AiPreferencesDTO;
   onChange: (next: AiPreferencesDTO) => void;
-  onDesign: () => void;
+  onChooseCoach: () => void;
   voiceEnabled: boolean;
+  /** The video coach is available (shows the coach's photo). */
+  realistic: boolean;
 }) {
   const coach = resolveCoach(preferences.design);
 
@@ -161,13 +164,13 @@ export function SettingsSheet({
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 pb-6">
           <div className="flex flex-wrap items-center gap-3 rounded-xl border p-3">
-            <CoachAvatar appearance={coach.appearance} name={coach.name} state="idle" size={64} still />
+            <CoachPortrait coach={coach} realistic={realistic} state="idle" size={64} still />
             <div className="min-w-16 flex-1">
               <p className="truncate font-semibold">{coach.name}</p>
               <p className="text-xs text-muted-foreground">Your AI coach</p>
             </div>
-            <Button variant="outline" className="h-10 rounded-full max-[359px]:w-full" onClick={onDesign}>
-              <Palette aria-hidden /> Design your coach
+            <Button variant="outline" className="h-10 rounded-full max-[359px]:w-full" onClick={onChooseCoach}>
+              <UserRound aria-hidden /> Choose your coach
             </Button>
           </div>
 

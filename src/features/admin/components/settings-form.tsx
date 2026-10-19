@@ -177,6 +177,7 @@ export function SettingsForm({
           onChange={(v) => set("aiCoachEnabled", v)}
         />
         <Toggle id="s-ai-voice" label="Voice" description="Talk to the coach and hear its replies. Uses ElevenLabs when configured, otherwise the browser's own voices." checked={form.aiVoiceEnabled} onChange={(v) => set("aiVoiceEnabled", v)} />
+        <Toggle id="s-ai-video" label="Video coach" description="Members can switch on a lifelike face during voice chat. Needs Voice on, plus Anam and ElevenLabs on the server. Billed per minute of video." checked={form.aiVideoEnabled} onChange={(v) => set("aiVideoEnabled", v)} />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field data-invalid={Boolean(errors.aiAlertEmail)}>
             <FieldLabel htmlFor="s-ai-email">Safety alert email</FieldLabel>

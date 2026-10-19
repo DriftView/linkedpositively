@@ -375,7 +375,7 @@ export async function streamReply(
   ctx: ToolContext,
   emitText: (delta: string) => void,
   usage: { input: number; output: number },
-  /** The member's coach design (buildPersona), after the cached system prompt. */
+  /** The member's chosen coach and style (buildPersona), after the cached system prompt. */
   persona?: string,
   effort: "low" | "medium" = "medium",
 ): Promise<ReplyResult> {

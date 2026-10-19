@@ -2,23 +2,12 @@ import { z } from "zod";
 import { uuidSchema } from "@/server/db/ids";
 import {
   AI_ALERT_STATUSES,
-  AI_COACH_EARRINGS,
-  AI_COACH_EYE_COLORS,
-  AI_COACH_FACIAL_HAIR,
-  AI_COACH_GLASSES,
-  AI_COACH_HAIR_COLORS,
-  AI_COACH_HAIRS,
-  AI_COACH_LOOKS,
-  AI_COACH_OUTFIT_COLORS,
-  AI_COACH_OUTFITS,
-  AI_COACH_PRONOUNS,
-  AI_COACH_SKINS,
+  AI_COACH_IDS,
   AI_COACH_TONES,
   AI_COACH_VOICES,
   AI_REPLY_LENGTHS,
   AI_TOPICS,
 } from "@/server/db/schema/ai";
-import { COACH_NAME_PATTERN } from "./coach-design";
 import { MAX_MESSAGE_LENGTH } from "./constants";
 
 /** Body of POST /api/ai/chat. */
@@ -54,31 +43,9 @@ export const preferencesSchema = z.object({
   autoSpeak: z.boolean(),
 });
 
-export const appearanceSchema = z.object({
-  skin: z.enum(AI_COACH_SKINS),
-  hair: z.enum(AI_COACH_HAIRS),
-  hairColor: z.enum(AI_COACH_HAIR_COLORS),
-  eyeColor: z.enum(AI_COACH_EYE_COLORS).optional(),
-  facialHair: z.enum(AI_COACH_FACIAL_HAIR),
-  glasses: z.enum(AI_COACH_GLASSES),
-  earrings: z.enum(AI_COACH_EARRINGS),
-  outfit: z.enum(AI_COACH_OUTFITS),
-  outfitColor: z.enum(AI_COACH_OUTFIT_COLORS),
-});
-
-/** The coach designer. Fixed choices only; the name is letters and spaces (it goes into the coach's instructions). */
+/** The coach picker: one of the fixed coaches, plus how it talks. */
 export const coachDesignSchema = z.object({
-  look: z.enum(AI_COACH_LOOKS),
-  name: z
-    .string()
-    .trim()
-    .max(20, "Keep the name under 20 characters")
-    .regex(COACH_NAME_PATTERN, "Use letters and spaces only")
-    .nullable()
-    .or(z.literal("").transform(() => null)),
-  pronouns: z.enum(AI_COACH_PRONOUNS).nullable(),
-  appearance: appearanceSchema.nullable(),
-  voice: z.enum(AI_COACH_VOICES).nullable(),
+  coachId: z.enum(AI_COACH_IDS),
   tone: z.enum(AI_COACH_TONES),
   replyLength: z.enum(AI_REPLY_LENGTHS),
 });
@@ -86,7 +53,7 @@ export const coachDesignSchema = z.object({
 export const AI_CLIENT_EVENTS = ["handoff_sent", "voice_output"] as const;
 export const clientEventSchema = z.object({ event: z.enum(AI_CLIENT_EVENTS) });
 
-/** Body of POST /api/ai/speech: a reply of the member's to read aloud, or a voice to preview in the designer. */
+/** Body of POST /api/ai/speech: a reply of the member's to read aloud, or a voice to preview in the coach picker. */
 export const speechRequestSchema = z.union([
   z.object({ messageId: uuidSchema }),
   z.object({ preview: z.enum(AI_COACH_VOICES) }),

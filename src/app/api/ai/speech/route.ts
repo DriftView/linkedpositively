@@ -14,7 +14,7 @@ import { trackUsage } from "@/server/services/usage";
 /**
  * Speech for the coach (JSON SpeechChunkDTO: MP3 as base64 plus its lip-sync
  * track). Reads one of the member's own replies in their coach's voice, or a
- * fixed sample sentence to preview a voice in the designer; nothing else, so
+ * fixed sample sentence to preview a voice in the coach picker; nothing else, so
  * this can't be used to voice arbitrary text. 503 means "use the browser's
  * voice instead".
  */

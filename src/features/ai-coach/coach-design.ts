@@ -1,63 +1,48 @@
 import type {
   AiCoachAppearance,
-  AiCoachLook,
+  AiCoachId,
   AiCoachPronouns,
   AiCoachTone,
   AiCoachVoice,
   AiReplyLength,
-  AI_COACH_EARRINGS,
   AI_COACH_EYE_COLORS,
-  AI_COACH_FACIAL_HAIR,
-  AI_COACH_GLASSES,
   AI_COACH_HAIR_COLORS,
-  AI_COACH_HAIRS,
   AI_COACH_OUTFIT_COLORS,
-  AI_COACH_OUTFITS,
   AI_COACH_SKINS,
 } from "@/server/db/schema/ai";
 
 /**
- * The coach a member designs: name, pronouns, look, voice and style. Every
- * option is a fixed choice (labels, colors and voice ids live here), so a
- * design changes how the coach looks and sounds, never its safety rules.
- * Client-safe; no server imports.
+ * The coaches a member can choose from. Each coach is fixed: name, pronouns,
+ * voice, photo and video face come from this file, so a member picks a coach
+ * and a style (tone, reply length) but never changes who the coach is or its
+ * safety rules. Client-safe; no server imports.
  */
 
-/** What the member chose. Null fields fall back to the starting look. */
-export type CoachDesign = {
-  look: AiCoachLook;
-  name: string | null;
-  pronouns: AiCoachPronouns | null;
-  appearance: AiCoachAppearance | null;
-  voice: AiCoachVoice | null;
-  tone: AiCoachTone;
-  replyLength: AiReplyLength;
-};
-
-/** The design with every gap filled in: what the app shows and says. */
-export type ResolvedCoach = {
-  name: string;
-  pronouns: AiCoachPronouns;
-  appearance: AiCoachAppearance;
-  voice: AiCoachVoice;
-  tone: AiCoachTone;
-  replyLength: AiReplyLength;
-};
-
-type Option<T extends string> = { id: T; label: string };
-
-export const COACH_PRESETS: {
-  id: AiCoachLook;
+/** One coach. To add a coach: add its id to AI_COACH_IDS (schema/ai.ts, plus a migration) and an entry here. */
+export type Coach = {
+  id: AiCoachId;
   name: string;
   pronouns: AiCoachPronouns;
   voice: AiCoachVoice;
+  /** Portrait in /public, shown when the video coach is available. */
+  photo: string;
+  /** Where the face sits in the photo (CSS object-position), so round crops keep it centered. */
+  photoFocus: string;
+  /** The Anam avatar that plays this coach on video. */
+  anamAvatarId: string;
+  /** The drawn coach: used when video isn't available or drops mid-call. */
   appearance: AiCoachAppearance;
-}[] = [
+};
+
+export const COACHES: Coach[] = [
   {
-    id: "amara",
-    name: "Amara",
+    id: "mina",
+    name: "Mina",
     pronouns: "she",
     voice: "gentle",
+    photo: "/coaches/mina.webp",
+    photoFocus: "50% 30%",
+    anamAvatarId: "65bdc796-f739-47fe-9a48-1134dc3ddae4",
     appearance: {
       skin: "t6",
       hair: "curls",
@@ -65,95 +50,41 @@ export const COACH_PRESETS: {
       eyeColor: "dark_brown",
       facialHair: "none",
       glasses: "none",
-      earrings: "hoops",
-      outfit: "tee",
-      outfitColor: "magenta",
-    },
-  },
-  {
-    id: "jordan",
-    name: "Jordan",
-    pronouns: "he",
-    voice: "easygoing",
-    appearance: {
-      skin: "t4",
-      hair: "fade",
-      hairColor: "dark_brown",
-      eyeColor: "brown",
-      facialHair: "stubble",
-      glasses: "none",
       earrings: "none",
-      outfit: "hoodie",
-      outfitColor: "sky",
-    },
-  },
-  {
-    id: "luis",
-    name: "Luis",
-    pronouns: "he",
-    voice: "warm",
-    appearance: {
-      skin: "t3",
-      hair: "waves",
-      hairColor: "dark_brown",
-      eyeColor: "dark_brown",
-      facialHair: "mustache",
-      glasses: "square",
-      earrings: "none",
-      outfit: "collar",
-      outfitColor: "apricot",
-    },
-  },
-  {
-    id: "kai",
-    name: "Kai",
-    pronouns: "they",
-    voice: "relaxed",
-    appearance: {
-      skin: "t2",
-      hair: "locs",
-      hairColor: "brown",
-      eyeColor: "hazel",
-      facialHair: "none",
-      glasses: "round",
-      earrings: "studs",
       outfit: "tee",
-      outfitColor: "plum",
+      outfitColor: "navy",
     },
   },
 ];
 
-export function coachPreset(id: string | null | undefined) {
-  return COACH_PRESETS.find((preset) => preset.id === id) ?? COACH_PRESETS[0];
+export function findCoach(id: string | null | undefined) {
+  return COACHES.find((coach) => coach.id === id) ?? COACHES[0];
 }
 
+/** What the member chose. */
+export type CoachDesign = {
+  coachId: AiCoachId;
+  tone: AiCoachTone;
+  replyLength: AiReplyLength;
+};
+
+/** The chosen coach with the member's style: what the app shows and says. */
+export type ResolvedCoach = Coach & { tone: AiCoachTone; replyLength: AiReplyLength };
+
+type Option<T extends string> = { id: T; label: string };
+
 export const DEFAULT_DESIGN: CoachDesign = {
-  look: "amara",
-  name: null,
-  pronouns: null,
-  appearance: null,
-  voice: null,
+  coachId: COACHES[0].id,
   tone: "warm",
   replyLength: "balanced",
 };
 
 export function resolveCoach(design: CoachDesign): ResolvedCoach {
-  const preset = coachPreset(design.look);
-  return {
-    name: design.name?.trim() || preset.name,
-    pronouns: design.pronouns ?? preset.pronouns,
-    appearance: design.appearance ?? preset.appearance,
-    voice: design.voice ?? preset.voice,
-    tone: design.tone,
-    replyLength: design.replyLength,
-  };
+  return { ...findCoach(design.coachId), tone: design.tone, replyLength: design.replyLength };
 }
 
-/** Coach names: letters (any language), spaces, apostrophes, dots and hyphens. Nothing that reads like an instruction. */
-export const COACH_NAME_PATTERN = /^\p{L}[\p{L}\p{M}' .-]{0,19}$/u;
-
 // ---------------------------------------------------------------------------
-// Appearance
+// Drawn coach colors
 // ---------------------------------------------------------------------------
 
 /** Skin tones, light to deep, with a shade for ears and neck and a lip color that reads on that tone. */
@@ -167,20 +98,6 @@ export const SKIN_TONES: Record<(typeof AI_COACH_SKINS)[number], { label: string
   t7: { label: "Tone 7", base: "#6b3e1d", shade: "#552f14", lip: "#c06a78" },
   t8: { label: "Tone 8", base: "#4a2a14", shade: "#3a200e", lip: "#c97582" },
 };
-
-export const HAIR_STYLES: Option<(typeof AI_COACH_HAIRS)[number]>[] = [
-  { id: "curls", label: "Curls" },
-  { id: "afro", label: "Afro" },
-  { id: "fade", label: "Fade" },
-  { id: "buzz", label: "Buzz cut" },
-  { id: "waves", label: "Waves" },
-  { id: "long", label: "Long" },
-  { id: "locs", label: "Locs" },
-  { id: "bun", label: "Bun" },
-  { id: "braids", label: "Braids" },
-  { id: "hijab", label: "Hijab" },
-  { id: "bald", label: "Bald" },
-];
 
 export const HAIR_COLORS: Record<(typeof AI_COACH_HAIR_COLORS)[number], { label: string; color: string }> = {
   black: { label: "Black", color: "#1f1410" },
@@ -203,35 +120,10 @@ export const EYE_COLORS: Record<(typeof AI_COACH_EYE_COLORS)[number], { label: s
   gray: { label: "Gray", color: "#8a979f" },
 };
 
-/** The coach's eye color; designs saved before eye colors existed have dark brown eyes. */
+/** The coach's eye color; appearances without one have dark brown eyes. */
 export function coachEyeColor(appearance: AiCoachAppearance) {
   return EYE_COLORS[appearance.eyeColor ?? "dark_brown"].color;
 }
-
-export const FACIAL_HAIR: Option<(typeof AI_COACH_FACIAL_HAIR)[number]>[] = [
-  { id: "none", label: "None" },
-  { id: "stubble", label: "Stubble" },
-  { id: "mustache", label: "Mustache" },
-  { id: "beard", label: "Beard" },
-];
-
-export const GLASSES: Option<(typeof AI_COACH_GLASSES)[number]>[] = [
-  { id: "none", label: "None" },
-  { id: "round", label: "Round" },
-  { id: "square", label: "Square" },
-];
-
-export const EARRINGS: Option<(typeof AI_COACH_EARRINGS)[number]>[] = [
-  { id: "none", label: "None" },
-  { id: "studs", label: "Studs" },
-  { id: "hoops", label: "Hoops" },
-];
-
-export const OUTFITS: Option<(typeof AI_COACH_OUTFITS)[number]>[] = [
-  { id: "tee", label: "T-shirt" },
-  { id: "hoodie", label: "Hoodie" },
-  { id: "collar", label: "Collared shirt" },
-];
 
 export const OUTFIT_COLORS: Record<(typeof AI_COACH_OUTFIT_COLORS)[number], { label: string; color: string }> = {
   magenta: { label: "Magenta", color: "var(--brand-magenta)" },
@@ -240,6 +132,7 @@ export const OUTFIT_COLORS: Record<(typeof AI_COACH_OUTFIT_COLORS)[number], { la
   plum: { label: "Plum", color: "var(--brand-plum)" },
   green: { label: "Green", color: "#2f8f5b" },
   charcoal: { label: "Charcoal", color: "#3d3d46" },
+  navy: { label: "Navy", color: "#2c3a66" },
 };
 
 // ---------------------------------------------------------------------------
@@ -248,8 +141,8 @@ export const OUTFIT_COLORS: Record<(typeof AI_COACH_OUTFIT_COLORS)[number], { la
 
 /**
  * Voices from ElevenLabs' default voice library (available to every account).
- * Labels describe the sound, not a gender. `pitch` tunes the browser's own
- * voice when ElevenLabs isn't available.
+ * Each coach has one. `pitch` tunes the browser's own voice when ElevenLabs
+ * isn't available.
  */
 export const COACH_VOICES: { id: AiCoachVoice; label: string; elevenLabsId: string; pitch: number }[] = [
   { id: "gentle", label: "Gentle, higher", elevenLabsId: "EXAVITQu4vr4xnSDxMaL", pitch: 1.15 },
@@ -266,7 +159,7 @@ export function coachVoice(id: string | null | undefined) {
   return COACH_VOICES.find((voice) => voice.id === id) ?? COACH_VOICES[0];
 }
 
-/** Said by every voice in the designer's preview (fixed, so previews can be cached). */
+/** Said in the coach picker's "Hear" preview (fixed, so previews can be cached). */
 export const VOICE_PREVIEW_TEXT = "Hi, I'm your Link Positively coach. I'm here whenever you want to talk.";
 
 export const PRONOUN_OPTIONS: Option<AiCoachPronouns>[] = [

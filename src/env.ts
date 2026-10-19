@@ -45,6 +45,8 @@ export const env = createEnv({
     ELEVENLABS_API_KEY: z.string().optional(),
     ELEVENLABS_VOICE_ID: z.string().default("JBFqnCBsd6RMkjVDRZzb"),
     ELEVENLABS_MODEL_ID: z.string().default("eleven_flash_v2_5"),
+    // Video coach (Anam): a lifelike face lip-synced to the ElevenLabs voice. Without both, calls show the drawn coach.
+    ANAM_API_KEY: z.string().optional(),
 
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   },
@@ -75,6 +77,7 @@ export const env = createEnv({
     ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
     ELEVENLABS_VOICE_ID: process.env.ELEVENLABS_VOICE_ID,
     ELEVENLABS_MODEL_ID: process.env.ELEVENLABS_MODEL_ID,
+    ANAM_API_KEY: process.env.ANAM_API_KEY,
     LOG_LEVEL: process.env.LOG_LEVEL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },

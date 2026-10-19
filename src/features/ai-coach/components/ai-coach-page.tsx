@@ -3,6 +3,7 @@ import { getSettings } from "@/features/admin/settings";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { type Viewer } from "@/server/auth/session";
 import { trackUsage } from "@/server/services/usage";
+import { videoConfigured } from "../avatar";
 import { aiConfigured } from "../claude";
 import { getConversationMessages, getPreferences, listConversations } from "../queries";
 import { voiceConfigured } from "../speech";
@@ -58,6 +59,7 @@ export async function AiCoachPage({
       preferences={preferences}
       voiceEnabled={settings.aiVoiceEnabled}
       serverVoice={voiceConfigured()}
+      videoAvailable={settings.aiVoiceEnabled && settings.aiVideoEnabled && voiceConfigured() && videoConfigured()}
       aiAvailable={aiConfigured()}
       timezone={viewer.timezone}
       firstName={viewer.name.split(" ")[0] ?? ""}

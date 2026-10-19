@@ -225,15 +225,11 @@ export const aiKnowledgeArticles = pgTable(
   ],
 );
 
-/** Starting looks for the coach (each one a preset appearance, name and voice). */
-export const AI_COACH_LOOKS = ["amara", "jordan", "luis", "kai"] as const;
-export type AiCoachLook = (typeof AI_COACH_LOOKS)[number];
+/** The coaches a member can choose (name, voice, photo and video face: features/ai-coach/coach-design.ts). */
+export const AI_COACH_IDS = ["mina"] as const;
+export type AiCoachId = (typeof AI_COACH_IDS)[number];
 
-/**
- * The coach a member designs. Every option is a fixed choice (no free-text
- * persona), so a design can change how the coach looks and sounds, never
- * what it is allowed to say. Labels and colors: features/ai-coach/coach-design.ts.
- */
+/** The drawn coach's look, used when the video coach isn't available. Colors: features/ai-coach/coach-design.ts. */
 export const AI_COACH_SKINS = ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"] as const;
 export const AI_COACH_HAIRS = [
   "curls",
@@ -263,7 +259,7 @@ export const AI_COACH_FACIAL_HAIR =["none", "stubble", "mustache", "beard"] as c
 export const AI_COACH_GLASSES = ["none", "round", "square"] as const;
 export const AI_COACH_EARRINGS = ["none", "studs", "hoops"] as const;
 export const AI_COACH_OUTFITS = ["tee", "hoodie", "collar"] as const;
-export const AI_COACH_OUTFIT_COLORS = ["magenta", "sky", "apricot", "plum", "green", "charcoal"] as const;
+export const AI_COACH_OUTFIT_COLORS = ["magenta", "sky", "apricot", "plum", "green", "charcoal", "navy"] as const;
 
 export type AiCoachAppearance = {
   skin: (typeof AI_COACH_SKINS)[number];
@@ -311,21 +307,19 @@ export const aiPreferences = pgTable(
     personalize: boolean().notNull().default(true),
     /** Read replies aloud automatically. */
     autoSpeak: boolean().notNull().default(false),
-    /** The starting look. Fills in anything the member hasn't designed (name, appearance, voice). */
-    look: text().$type<AiCoachLook>().notNull().default("amara"),
-    /** The member's name for the coach; null = the look's name. Letters, spaces, ' . - only. */
+    /** The chosen coach (AI_COACH_IDS). */
+    look: text().$type<AiCoachId>().notNull().default("mina"),
+    /** Unused since coaches became fixed (members used to design them); kept for the study's records. */
     coachName: text(),
     coachPronouns: text().$type<AiCoachPronouns>(),
-    /** Null = the look's appearance. Validated on write (schemas.ts appearanceSchema). */
     appearance: jsonb().$type<AiCoachAppearance>(),
-    /** Null = the look's voice. */
     voice: text().$type<AiCoachVoice>(),
     tone: text().$type<AiCoachTone>().notNull().default("warm"),
     replyLength: text().$type<AiReplyLength>().notNull().default("balanced"),
     ...timestamps(),
   },
   (t) => [
-    enumCheck("ai_preferences_look_ck", t.look, AI_COACH_LOOKS),
+    enumCheck("ai_preferences_look_ck", t.look, AI_COACH_IDS),
     enumCheck("ai_preferences_coach_pronouns_ck", t.coachPronouns, AI_COACH_PRONOUNS),
     enumCheck("ai_preferences_voice_ck", t.voice, AI_COACH_VOICES),
     enumCheck("ai_preferences_tone_ck", t.tone, AI_COACH_TONES),

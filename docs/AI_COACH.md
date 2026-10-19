@@ -115,7 +115,7 @@ Each case below has a defined reply. The member always sees how to reach people,
   - The audio comes back as `speech` events, in order, before `done`.
   - Up to 2,500 characters are spoken per reply. Speech stops if the member leaves the page; the turn itself still finishes and is saved.
 - **Browser voice fallback:** without ElevenLabs, or when a request fails, the browser's own speech synthesis reads each sentence. Once ElevenLabs fails during a reply, the browser reads the rest, so the voice doesn't switch back and forth.
-- **Replaying a reply:** `POST /api/ai/speech` reads a saved reply in the coach's voice. With `{ preview }` it reads a fixed sample sentence for the designer. It never voices arbitrary text.
+- **Replaying a reply:** `POST /api/ai/speech` reads a saved reply in the coach's voice. With `{ preview }` it reads a fixed sample sentence for the coach picker. It never voices arbitrary text.
 - **Playback** (`use-coach-voice.ts`): one Web Audio context, unlocked on the member's first tap, which also lets iOS play later chunks.
 - **Hands-free voice chat** (`use-hands-free.ts`, the voice chat button next to the mic):
   - An open mic with voice activity detection (echo cancellation and noise suppression on). The member just talks; a 0.9 s pause ends their turn.
@@ -126,33 +126,33 @@ Each case below has a defined reply. The member always sees how to reach people,
   - **Controls:** Mute and End voice chat. The mic switches itself off after 90 s without speech.
   - Usage: `ai_message` events carry `handsFree`.
 - **Push-to-talk:** the mic button still records one message and sends it.
-- **Avatar** (`components/coach-avatar.tsx`): the coach drawn from the member's design (no vendor, no model files, works offline).
-  - An illustrated SVG character, in every size (coach stage, voice chat, chat header, thumbnails, designer preview). `still` draws a static picture.
+- **Faces** (`components/coach-portrait.tsx`): where the video coach is available, the coach's photo (`/public/coaches/`) shows outside calls; otherwise the drawn coach does.
+- **Drawn coach** (`components/coach-avatar.tsx`): the fallback when video isn't available or fails (no vendor, no model files, works offline). Each coach has a drawn look that matches its photo.
+  - An illustrated SVG character, in every size (coach stage, voice chat, chat header, thumbnails, coach picker). `still` draws a static picture.
   - Motion (`coach-motion.ts`): breathing, a slow head sway, blinks at irregular intervals, and small glances; looking up and aside while thinking, and nods while the member talks (mic loudness); brows that lift on loud syllables; a mouth that follows **visemes** (mouth shapes from ElevenLabs' per-character timing; estimated per word for browser voices) scaled by the voice's loudness. Blinks close fast and open slower, and the head makes small, slow turns that the eyes lead.
   - Under `prefers-reduced-motion`, idle motion stops and only the mouth moves.
+- **Video coach** (Anam, `avatar.ts`, `components/use-video-coach.ts`): a lifelike face plays the coach for the whole voice chat. It starts with the call (no button); the coach's photo shows while it connects.
+  - **Only the face is Anam's.** It runs in audio passthrough: we send the ElevenLabs audio of each sentence (as 16 kHz PCM, `pcm.ts`) and the face lip-syncs it. Claude, the safety layers and the voice stay ours; the face never hears the member (`disableInputAudio`).
+  - `POST /api/ai/avatar-session` hands the browser a one-call session token for the member's coach (its `anamAvatarId` in `coach-design.ts`; the browser can't name an avatar, and the API key stays on the server) and records an `ai_video_session` event.
+  - In `use-coach-voice.ts`, while the face is live, audio goes to it instead of the speakers. The queue still waits each sentence's length, so captions, "Speaking" and hands-free turn-taking are unchanged. Interrupting ("Stop talking", or talking over it) interrupts the face.
+  - **Costs:** Anam bills per minute, and every voice chat now uses video. Video runs only while a call is open: it ends when the call ends, pauses while the tab is hidden (and comes back when it's shown), and after a failure the drawn coach takes over for the rest of the call (with a toast). The admin "Video coach" setting turns it off for everyone.
+  - **Offered only when** the Video coach and Voice settings are on and the server has `ANAM_API_KEY` and ElevenLabs. Browser-voice sentences (no ElevenLabs audio) play through the speakers with the face still.
 
-## Coach designer
+## Choosing a coach
 
-Members design their coach under Coach settings → "Design your coach" (also linked under the coach on desktop). The sheet has a live preview, and each voice can be heard.
+Members choose their coach under Coach settings → "Choose your coach" (also linked under the coach on desktop). They pick a coach, not design one: each coach's name, pronouns, voice, photo, video face and drawn look are fixed in `coach-design.ts` `COACHES`. Each coach's voice can be heard first.
 
-- **Start from** one of four looks: Amara, Jordan, Luis or Kai. Each look sets a name, pronouns, appearance and voice.
-- **Name** (up to 20 letters; letters, spaces, `' . -` only) and **pronouns** (she, he, they).
-- **Look:**
-  - skin tone (8) and eye color (6; designs saved before eye colors existed show dark brown);
-  - hair (11 styles, including hijab and bald) and hair color;
-  - facial hair, glasses, earrings;
-  - top and top color.
-- **Voice:** 8 vetted ElevenLabs default-library voices, labelled by sound ("Gentle, higher", "Deep and calm"…), not by gender. The ids are in `coach-design.ts` `COACH_VOICES`. Browser voices use a matching pitch.
-- **Style:** tone (warm, upbeat, calm, direct) and reply length (short, medium, detailed).
+- **Coaches:** Mina (she/her, the "Gentle" ElevenLabs voice). To add a coach: add its id to `AI_COACH_IDS` (`schema/ai.ts`) with a migration for the `look` check, add an entry to `COACHES` (name, pronouns, voice, Anam avatar id, photo in `/public/coaches/`, drawn look), and the picker shows it.
+- **Style:** members still choose a tone (warm, upbeat, calm, direct) and reply length (short, medium, detailed).
 
-How the design is used and stored:
+How the choice is used and stored:
 
-- **Fixed choices only.** There is no free-text persona, so a design can't talk the coach out of its rules.
-  - The name, pronouns, tone and length go into a short persona block after the cached system prompt (`buildPersona` in `prompt.ts`).
+- **Fixed choices only.** There is no free-text persona, so a choice can't talk the coach out of its rules.
+  - The coach's name and pronouns, plus the tone and length, go into a short persona block after the cached system prompt (`buildPersona` in `prompt.ts`).
   - The system prompt says the persona changes only how the coach sounds: safety comes first and it is still an AI coach.
   - In a crisis the coach keeps it short, whatever the length setting.
-- **Storage:** `ai_preferences` (`coach_name`, `coach_pronouns`, `appearance` jsonb, `voice`, `tone`, `reply_length`; migration `0004_coach_designer`). Empty fields fall back to the chosen look.
-- **Usage events:** each save records an `ai_coach_designed` event with the choices (look, voice, tone, length, whether it was renamed or restyled). The name itself is never logged.
+- **Storage:** `ai_preferences.look` holds the coach id, plus `tone` and `reply_length`. Migration `0005_fixed_coaches` moved every member to Mina. The old designer columns (`coach_name`, `coach_pronouns`, `appearance`, `voice`) are kept but unused.
+- **Usage events:** each save records an `ai_coach_designed` event with the coach, tone and length.
 
 ## Privacy (PRD §8)
 
@@ -192,6 +192,8 @@ ELEVENLABS_API_KEY=...
 # Optional voice choice:
 ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
 ELEVENLABS_MODEL_ID=eleven_flash_v2_5
+# Optional video coach (needs ElevenLabs too):
+ANAM_API_KEY=...
 ```
 
 Each member's coach voice comes from `COACH_VOICES` in `coach-design.ts`; `ELEVENLABS_VOICE_ID` is only a fallback. For the fastest spoken replies (hands-free chat), consider `ELEVENLABS_MODEL_ID=eleven_flash_v2_5`: it costs less and starts sooner, with slightly less expressive speech.
@@ -212,8 +214,8 @@ Tests: `pnpm test` covers the keyword safety check, prompt and context building,
 3. Confirm the fallback wording and limits (40 messages an hour, 60 turns per conversation).
 4. Confirm retention: kept indefinitely for the study, hidden-not-deleted for members.
 5. Supported languages: English prompts. Claude will answer in the member's language, but approved content is English.
-6. Confirm the eight designer voices are available in the study's ElevenLabs account (and confirm a BAA or data terms if required). Accessibility review with members.
+6. Confirm each coach's voice is available in the study's ElevenLabs account (and confirm a BAA or data terms if required). Accessibility review with members.
 7. Define accuracy measurement and "successful resolution" (the overview shows proxies).
 8. UAT and safety validation with real scenarios before launch (PRD §12). Run them against a non-production database.
-9. Coach designer and hands-free voice chat change what the intervention arm experiences. Confirm with the PI or IRB, and decide how the design choices (`ai_coach_designed`) enter the analysis.
+9. Choosing a coach, the video coach and hands-free voice chat change what the intervention arm experiences. Confirm with the PI or IRB, and decide how the design choices (`ai_coach_designed`) enter the analysis.
 10. Hands-free voice chat keeps the mic open: confirm the in-app wording ("Your mic is on…") and the 90 s auto-off.

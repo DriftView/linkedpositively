@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { recordClientEventAction } from "../actions";
+import { levelAt } from "../pcm";
 import { speakableText } from "../prompt";
 import type { SpeechChunkDTO } from "../types";
 import { textToVisemes, visemeAt, type VisemeTrack } from "../voice-lib";
 import { newFace, type CoachFace } from "./coach-avatar";
+import type { VideoSink } from "./use-video-coach";
 
 type Chunk = { text: string; audio: Promise<AudioBuffer | null> | null; visemes: VisemeTrack | null };
 
@@ -35,8 +37,17 @@ function base64ToBuffer(base64: string) {
  * mouth following the audio's visemes and loudness. Chunks without audio are
  * read by the browser's own voice, with estimated mouth shapes per word.
  * `speak(id, text)` replays a saved reply the same way.
+ *
+ * When `video` holds a sink (the video coach is live), ElevenLabs audio goes
+ * to the video face instead of the speakers: the face says it and its stream
+ * carries the voice. The queue still waits each sentence's length, so
+ * captions, "speaking" and hands-free turn-taking work the same.
  */
-export function useCoachVoice({ pitch = 1, onIdle }: { pitch?: number; onIdle?: () => void } = {}) {
+export function useCoachVoice({
+  pitch = 1,
+  onIdle,
+  video,
+}: { pitch?: number; onIdle?: () => void; video?: React.RefObject<VideoSink | null> } = {}) {
   const face = useRef<CoachFace>(newFace());
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -52,12 +63,17 @@ export function useCoachVoice({ pitch = 1, onIdle }: { pitch?: number; onIdle?: 
   const tokenRef = useRef(0);
   const idRef = useRef<string | null>(null);
   const reportedRef = useRef(false);
+  /** The video sink that got this reply's audio, so it can be ended or interrupted. */
+  const videoTurnRef = useRef<VideoSink | null>(null);
+  const videoDoneRef = useRef<(() => void) | null>(null);
   const pitchRef = useRef(pitch);
   const onIdleRef = useRef(onIdle);
+  const videoRef = useRef(video);
   useEffect(() => {
     pitchRef.current = pitch;
     onIdleRef.current = onIdle;
-  }, [pitch, onIdle]);
+    videoRef.current = video;
+  }, [pitch, onIdle, video]);
 
   /** Creates or resumes the audio context. Call from a tap or key press (browsers only allow audio after one). */
   const unlock = useCallback(() => {
@@ -85,10 +101,14 @@ export function useCoachVoice({ pitch = 1, onIdle }: { pitch?: number; onIdle?: 
       // already stopped
     }
     sourceRef.current = null;
+    videoDoneRef.current?.();
+    videoDoneRef.current = null;
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
 
   const finish = useCallback(() => {
+    videoTurnRef.current?.endTurn();
+    videoTurnRef.current = null;
     silence();
     playingRef.current = false;
     idRef.current = null;
@@ -101,6 +121,8 @@ export function useCoachVoice({ pitch = 1, onIdle }: { pitch?: number; onIdle?: 
   const stop = useCallback(() => {
     const wasActive = idRef.current !== null;
     tokenRef.current++;
+    videoTurnRef.current?.interrupt();
+    videoTurnRef.current = null;
     queueRef.current = [];
     endedRef.current = true;
     silence();
@@ -147,6 +169,33 @@ export function useCoachVoice({ pitch = 1, onIdle }: { pitch?: number; onIdle?: 
         resolve();
       };
       source.start();
+      frameRef.current = requestAnimationFrame(tick);
+    });
+  }, []);
+
+  /** Sends a sentence to the video face, then waits as long as it takes to say it. */
+  const playToVideo = useCallback((sink: VideoSink, buffer: AudioBuffer, token: number) => {
+    return new Promise<void>((resolve) => {
+      if (tokenRef.current !== token) return resolve();
+      videoTurnRef.current = sink;
+      sink.send(buffer);
+      const samples = buffer.getChannelData(0);
+      const startedAt = performance.now();
+      const done = () => {
+        cancelAnimationFrame(frameRef.current);
+        face.current.level = 0;
+        face.current.viseme = "rest";
+        if (videoDoneRef.current === done) videoDoneRef.current = null;
+        resolve();
+      };
+      videoDoneRef.current = done;
+      // The face's own mouth moves; the loudness still drives the call rings.
+      const tick = () => {
+        const ms = performance.now() - startedAt;
+        if (ms >= buffer.duration * 1000) return done();
+        face.current.level = levelAt(samples, buffer.sampleRate, ms);
+        frameRef.current = requestAnimationFrame(tick);
+      };
       frameRef.current = requestAnimationFrame(tick);
     });
   }, []);
@@ -210,13 +259,15 @@ export function useCoachVoice({ pitch = 1, onIdle }: { pitch?: number; onIdle?: 
       if (tokenRef.current !== token) return;
       setLoadingId(null);
       setSpeakingId(idRef.current);
-      if (buffer) await playBuffer(buffer, chunk.visemes, token);
+      const sink = videoRef.current?.current;
+      if (buffer && sink) await playToVideo(sink, buffer, token);
+      else if (buffer) await playBuffer(buffer, chunk.visemes, token);
       else await speakWithBrowser(chunk.text, token);
     }
     if (tokenRef.current !== token) return;
     playingRef.current = false;
     if (endedRef.current) finish();
-  }, [finish, playBuffer, speakWithBrowser]);
+  }, [finish, playBuffer, playToVideo, speakWithBrowser]);
 
   /** Starts speaking a reply that is still streaming. */
   const begin = useCallback(
@@ -259,7 +310,7 @@ export function useCoachVoice({ pitch = 1, onIdle }: { pitch?: number; onIdle?: 
     setLoadingId((current) => (current === from ? to : current));
   }, []);
 
-  /** Reads a saved reply aloud, or plays a voice preview (`body`) in the designer. */
+  /** Reads a saved reply aloud, or plays a voice preview (`body`) in the coach picker. */
   const speak = useCallback(
     async (id: string, text: string, body: object = { messageId: id }) => {
       begin(id);

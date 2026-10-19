@@ -5,17 +5,19 @@ import { createPortal } from "react-dom";
 import { LifeBuoy, MessageSquareText, Mic, MicOff, PhoneOff, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import type { AiCoachAppearance } from "@/server/db/schema/ai";
 import { cn } from "@/lib/utils";
+import type { Coach } from "../coach-design";
 import type { ChatMessageDTO } from "../types";
-import { CoachAvatar, type CoachFace, type CoachState } from "./coach-avatar";
+import type { CoachFace, CoachState } from "./coach-avatar";
+import { CoachPortrait } from "./coach-portrait";
 import { CoachMarkdown, CrisisCard, ReplyCards } from "./reply-cards";
+import type { VideoCoach } from "./use-video-coach";
 import "./coach-call.css";
 
 type Props = {
   connecting: boolean;
   startedAt: number | null;
-  coach: { name: string; appearance: AiCoachAppearance };
+  coach: Pick<Coach, "name" | "appearance" | "photo" | "photoFocus">;
   state: CoachState;
   statusLine: string;
   caption: string | null;
@@ -23,6 +25,8 @@ type Props = {
   listen: React.RefObject<number>;
   muted: boolean;
   speaking: boolean;
+  /** The video coach, when it is offered (it starts with the call); null shows only the drawn coach. */
+  video: VideoCoach | null;
   messages: ChatMessageDTO[];
   status: string | null;
   crisis: "elevated" | "urgent" | null;
@@ -36,10 +40,12 @@ type Props = {
  * Hands-free voice chat as a phone call: a full-screen view with the coach in
  * the middle, rings that move with whoever is talking, a call timer, captions,
  * and big call buttons. The written conversation is one tap away. The screen
- * stays awake for the call (Wake Lock, where the browser has it).
+ * stays awake for the call (Wake Lock, where the browser has it). Where the
+ * video coach is offered, its lifelike face fades in over the coach's photo
+ * once the stream is live; if video fails, the drawn coach takes over.
  */
 export function CoachCall(props: Props) {
-  const { connecting, coach, messages } = props;
+  const { connecting, coach, messages, video } = props;
   const [transcript, setTranscript] = useState(false);
   const size = useAvatarSize(transcript);
   const endRef = useRef<HTMLButtonElement>(null);
@@ -106,14 +112,26 @@ export function CoachCall(props: Props) {
         )}
       >
         <CallRings state={connecting ? "connecting" : props.state} face={props.face} listen={props.listen}>
-          <CoachAvatar
-            appearance={coach.appearance}
-            name={coach.name}
+          <CoachPortrait
+            coach={coach}
+            realistic={Boolean(video && !video.failed)}
             state={props.state}
             face={props.face}
             listen={props.listen}
             size={size}
           />
+          {video && video.status !== "off" ? (
+            <video
+              id={video.videoId}
+              autoPlay
+              playsInline
+              aria-label={`${coach.name} on video`}
+              className={cn(
+                "absolute inset-0 size-full rounded-full bg-muted object-cover transition-opacity duration-500 motion-reduce:transition-none",
+                video.status === "live" ? "opacity-100" : "opacity-0",
+              )}
+            />
+          ) : null}
         </CallRings>
 
         <p

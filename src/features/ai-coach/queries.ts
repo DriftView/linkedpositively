@@ -37,11 +37,7 @@ export async function getPreferences(userId: string): Promise<AiPreferencesDTO> 
     autoSpeak: row?.autoSpeak ?? false,
     design: row
       ? {
-          look: row.look,
-          name: row.coachName,
-          pronouns: row.coachPronouns,
-          appearance: row.appearance,
-          voice: row.voice,
+          coachId: row.look,
           tone: row.tone,
           replyLength: row.replyLength,
         }

@@ -17,8 +17,15 @@ export const settingsSchema = z.object({
   qualtricsSyncEnabled: z.boolean(),
   aiCoachEnabled: z.boolean(),
   aiVoiceEnabled: z.boolean(),
+  aiVideoEnabled: z.boolean(),
   aiAlertEmail: z.union([z.literal(""), z.email("Enter a valid email address.")]),
-  aiOnCallPhone: z.union([z.literal(""), z.string().trim().regex(/^\+[1-9]\d{7,14}$/, "Use international format, e.g. +15551234567.")]),
+  aiOnCallPhone: z.union([
+    z.literal(""),
+    z
+      .string()
+      .trim()
+      .regex(/^\+[1-9]\d{7,14}$/, "Use international format, e.g. +15551234567."),
+  ]),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;
@@ -37,6 +44,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   qualtricsSyncEnabled: false,
   aiCoachEnabled: true,
   aiVoiceEnabled: true,
+  // Only offered when Anam and ElevenLabs are configured; members switch the face on per call.
+  aiVideoEnabled: true,
   // Empty: safety alert emails go to the study contact email.
   aiAlertEmail: "",
   aiOnCallPhone: "",

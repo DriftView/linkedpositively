@@ -14,18 +14,18 @@ const SESSION_TOKEN_URL = "https://api.anam.ai/v1/auth/session-token";
 const AVATAR_MODEL = "cara-4";
 
 export function videoConfigured() {
-  return Boolean(env.ANAM_API_KEY && env.ANAM_AVATAR_ID);
+  return Boolean(env.ANAM_API_KEY);
 }
 
-/** A session token for one video call, or null when Anam is unavailable. */
-export async function createAvatarSession(): Promise<string | null> {
-  if (!env.ANAM_API_KEY || !env.ANAM_AVATAR_ID) return null;
+/** A session token for one video call with this avatar (the coach's, see coach-design.ts), or null when Anam is unavailable. */
+export async function createAvatarSession(avatarId: string): Promise<string | null> {
+  if (!env.ANAM_API_KEY) return null;
   try {
     const response = await fetch(SESSION_TOKEN_URL, {
       method: "POST",
       headers: { authorization: `Bearer ${env.ANAM_API_KEY}`, "content-type": "application/json" },
       body: JSON.stringify({
-        personaConfig: { avatarId: env.ANAM_AVATAR_ID, avatarModel: AVATAR_MODEL, enableAudioPassthrough: true },
+        personaConfig: { avatarId, avatarModel: AVATAR_MODEL, enableAudioPassthrough: true },
       }),
       signal: AbortSignal.timeout(10_000),
     });
