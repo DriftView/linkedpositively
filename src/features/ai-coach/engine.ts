@@ -16,7 +16,7 @@ import {
 import { logger } from "@/server/logger";
 import { trackUsage } from "@/server/services/usage";
 import { classifyRisk } from "./classifier";
-import { AI_MODEL, aiConfigured, claude, FALLBACK_BETA } from "./claude";
+import { AI_MODEL, aiConfigured, claude, FALLBACK_BETA, VOICE_MODEL } from "./claude";
 import { HOURLY_MESSAGE_LIMIT, MAX_TURNS_PER_CONVERSATION } from "./constants";
 import { raiseAlert } from "./escalation";
 import { searchKnowledge } from "./knowledge";
@@ -78,39 +78,34 @@ const LONG_CONVERSATION_TEXT =
 export async function runChatTurn(input: ChatInput): Promise<void> {
   const { viewer, emit } = input;
   const started = Date.now();
-  const settings = await getSettings();
-  if (!settings.aiCoachEnabled) throw new ChatError("The AI Coach is switched off right now.");
-
-  // Conversation (owned by the viewer, not hidden).
-  let conversationId = input.conversationId;
-  let title = conversationTitle(input.text);
-  let turnCount = 0;
-  if (conversationId) {
-    const [[conversation], [{ turns }]] = await Promise.all([
-      db
-        .select({ id: aiConversations.id, title: aiConversations.title })
-        .from(aiConversations)
-        .where(
-          and(
-            eq(aiConversations.id, conversationId),
-            eq(aiConversations.userId, viewer.id),
-            isNull(aiConversations.hiddenAt),
-          ),
-        )
-        .limit(1),
-      db
-        .select({ turns: count() })
-        .from(aiMessages)
-        .where(and(eq(aiMessages.conversationId, conversationId), eq(aiMessages.role, "user"))),
-    ]);
-    if (!conversation) throw new ChatError("That conversation isn't available. Start a new one.");
-    title = conversation.title;
-    turnCount = turns;
-  }
-
-  // Facts about the member (the member context note, the tools).
-  // The hourly count is taken before this message is saved (so the limit check below uses >=).
-  const [preferences, [profile], navigator, [{ recent }]] = await Promise.all([
+  // Every read up front, in one round: the member is waiting (in voice chat, listening).
+  const existingId = input.conversationId;
+  const [settings, existing, history, preferences, [profile], navigator, [{ recent }]] = await Promise.all([
+    getSettings(),
+    // The conversation (owned by the viewer, not hidden) and its turn count.
+    existingId
+      ? Promise.all([
+          db
+            .select({ id: aiConversations.id, title: aiConversations.title })
+            .from(aiConversations)
+            .where(
+              and(
+                eq(aiConversations.id, existingId),
+                eq(aiConversations.userId, viewer.id),
+                isNull(aiConversations.hiddenAt),
+              ),
+            )
+            .limit(1),
+          db
+            .select({ turns: count() })
+            .from(aiMessages)
+            .where(and(eq(aiMessages.conversationId, existingId), eq(aiMessages.role, "user"))),
+        ])
+      : null,
+    // What was said so far (this message isn't saved yet). Used only once the conversation checks out.
+    existingId ? loadHistory(existingId) : Promise.resolve([]),
+    // Facts about the member (the member context note, the tools).
+    // The hourly count is taken before this message is saved (so the limit check below uses >=).
     input.preferences ?? getPreferences(viewer.id),
     db
       .select({ firstName: profiles.firstName, pronouns: profiles.pronouns, location: profiles.location })
@@ -129,6 +124,17 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         ),
       ),
   ]);
+  if (!settings.aiCoachEnabled) throw new ChatError("The AI Coach is switched off right now.");
+
+  let conversationId = existingId;
+  let title = conversationTitle(input.text);
+  let turnCount = 0;
+  if (existing) {
+    const [[conversation], [{ turns }]] = existing;
+    if (!conversation) throw new ChatError("That conversation isn't available. Start a new one.");
+    title = conversation.title;
+    turnCount = turns;
+  }
 
   const isNew = !conversationId;
   if (!conversationId) {
@@ -199,10 +205,12 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     emit({ type: "safety", level, category });
   };
 
-  // Safety layer 1: keywords, before anything else.
+  // Safety layer 1: keywords, before anything else. The card shows now; the alert is
+  // recorded while the reply starts, and is on the record before the reply is final.
+  let keywordAlert: Promise<unknown> = Promise.resolve();
   if (keyword) {
     showSafety(keyword.level, keyword.category);
-    await raiseAlert({
+    keywordAlert = raiseAlert({
       userId: viewer.id,
       conversationId,
       messageId: userMessage.id,
@@ -249,6 +257,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
   let outcome: AiOutcome = "answered";
   let turnMessages: Anthropic.Beta.BetaMessageParam[] = [];
   const usage = { input: 0, output: 0 };
+  let replyModel = AI_MODEL;
   const emitText = (delta: string) => {
     text += delta;
     emit({ type: "text", delta });
@@ -261,7 +270,6 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
   } else if (!aiConfigured()) {
     outcome = "fallback_unavailable";
   } else {
-    const history = await loadHistory(conversationId, userMessage.id);
     const toolContext: ToolContext = {
       viewer,
       conversationId,
@@ -283,9 +291,13 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         tone: coach.tone,
         replyLength: coach.replyLength,
       });
-      // Spoken replies are short and a member is listening: think less, start talking sooner.
-      const effort = input.viaVoice || input.handsFree ? "low" : "medium";
-      const result = await streamReply(history, userParam, toolContext, emitText, usage, persona, effort);
+      // Spoken replies are short and a member is listening: a faster model, thinking less, so it starts talking sooner.
+      const spoken = Boolean(input.viaVoice || input.handsFree);
+      replyModel = spoken ? VOICE_MODEL : AI_MODEL;
+      const result = await streamReply(history, userParam, toolContext, emitText, usage, persona, {
+        model: replyModel,
+        effort: spoken ? "low" : "medium",
+      });
       turnMessages = result.messages;
       if (result.refused) outcome = "fallback_refusal";
     } catch (error) {
@@ -299,7 +311,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
   }
 
   // The safety review must be on the record (and its card shown) before the reply is final.
-  await classification;
+  await Promise.all([keywordAlert, classification]);
 
   // Fallbacks: a defined reply (after any partial answer), related approved content, and a clean history entry.
   if (outcome !== "answered") {
@@ -331,7 +343,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
       apiMessages: turnMessages,
       cards: Object.keys(cards).length ? cards : null,
       outcome,
-      model: outcome === "answered" || outcome === "fallback_refusal" ? AI_MODEL : null,
+      model: outcome === "answered" || outcome === "fallback_refusal" ? replyModel : null,
       inputTokens: usage.input || null,
       outputTokens: usage.output || null,
       latencyMs: Date.now() - started,
@@ -355,15 +367,13 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
 }
 
 /** The conversation so far as Messages API history (every stored turn, in order, unchanged). */
-async function loadHistory(conversationId: string, excludeId: string) {
+async function loadHistory(conversationId: string) {
   const rows = await db
-    .select({ id: aiMessages.id, apiMessages: aiMessages.apiMessages })
+    .select({ apiMessages: aiMessages.apiMessages })
     .from(aiMessages)
     .where(eq(aiMessages.conversationId, conversationId))
     .orderBy(asc(aiMessages.createdAt), desc(aiMessages.role));
-  return rows
-    .filter((row) => row.id !== excludeId)
-    .flatMap((row) => row.apiMessages as Anthropic.Beta.BetaMessageParam[]);
+  return rows.flatMap((row) => row.apiMessages as Anthropic.Beta.BetaMessageParam[]);
 }
 
 type ReplyResult = { messages: Anthropic.Beta.BetaMessageParam[]; refused: boolean };
@@ -377,7 +387,7 @@ export async function streamReply(
   usage: { input: number; output: number },
   /** The member's chosen coach and style (buildPersona), after the cached system prompt. */
   persona?: string,
-  effort: "low" | "medium" = "medium",
+  { model = AI_MODEL, effort = "medium" }: { model?: string; effort?: "low" | "medium" } = {},
 ): Promise<ReplyResult> {
   const turn: Anthropic.Beta.BetaMessageParam[] = [userParam];
   let wroteText = false;
@@ -386,7 +396,7 @@ export async function streamReply(
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const lastRound = round === MAX_TOOL_ROUNDS - 1;
     const stream = claude().beta.messages.stream({
-      model: AI_MODEL,
+      model,
       max_tokens: 16000,
       betas: [FALLBACK_BETA],
       fallbacks: "default",

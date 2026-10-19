@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { END_OF_TURN_SILENCE_MS, HANDS_FREE_IDLE_MS, MAX_RECORDING_SECONDS } from "../constants";
+import { LiveTranscriber } from "../live-transcription";
+import { toPcm16 } from "../pcm";
 import { recognitionClass, recordingMimeType, transcribeRecording, type Recognition } from "./use-voice-input";
 
 /**
@@ -18,6 +20,38 @@ const SPEECH_START_MS = 150;
 const BARGE_IN_MS = 350;
 /** Without speech, the recording restarts this often so it never grows large. */
 const RECORDER_RESET_MS = 30_000;
+/** Audio kept from just before speech is detected, so live transcription hears the turn's first syllable. */
+const PRE_ROLL_MS = 500;
+/** Live audio goes out in pieces about this long. */
+const LIVE_SEND_MS = 100;
+/** Reconnects in a row before live transcription gives up for the call (turns are uploaded instead). */
+const MAX_RECONNECTS = 5;
+
+/** Copies the microphone's samples to the page in small blocks, for live transcription. */
+const MIC_TAP_WORKLET = `class CoachMicTap extends AudioWorkletProcessor {
+  constructor() { super(); this.buffer = new Float32Array(2048); this.length = 0; }
+  process(inputs) {
+    const input = inputs[0] && inputs[0][0];
+    if (input) {
+      for (let i = 0; i < input.length; i++) {
+        this.buffer[this.length++] = input[i];
+        if (this.length === this.buffer.length) { this.port.postMessage(this.buffer.slice(0)); this.length = 0; }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor("coach-mic-tap", CoachMicTap);`;
+
+function joinFrames(frames: Float32Array[]) {
+  const out = new Float32Array(frames.reduce((total, frame) => total + frame.length, 0));
+  let offset = 0;
+  for (const frame of frames) {
+    out.set(frame, offset);
+    offset += frame.length;
+  }
+  return out;
+}
 
 type Options = {
   serverTranscription: boolean;
@@ -34,6 +68,11 @@ type Options = {
  * coach interrupts it. Audio leaves the device only for transcription after
  * speech is detected (ElevenLabs), or goes to the browser's own speech
  * recognition. The mic turns itself off after a long silence.
+ *
+ * With ElevenLabs, each turn is streamed for live transcription while the
+ * member talks (live-transcription.ts), so the words are ready when they
+ * stop. Each turn is also recorded; if live transcription fails, the
+ * recording is uploaded instead.
  */
 export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onError, onTimeout }: Options) {
   const [phase, setPhaseState] = useState<HandsFreePhase>("off");
@@ -49,9 +88,18 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
   const contextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recorderRef = useRef<{ recorder: MediaRecorder; chunks: Blob[]; startedAt: number; send: boolean } | null>(
-    null,
-  );
+  const recorderRef = useRef<{
+    recorder: MediaRecorder;
+    chunks: Blob[];
+    startedAt: number;
+    send: boolean;
+    /** This turn's live transcription (null: none, use the recording). */
+    live: Promise<string | null> | null;
+  } | null>(null);
+  const liveRef = useRef<LiveTranscriber | null>(null);
+  const tapRef = useRef<AudioWorkletNode | null>(null);
+  /** Mic audio for live transcription: the pre-roll while listening, then the turn being streamed. */
+  const liveAudio = useRef({ preRoll: [] as Float32Array[], pending: [] as Float32Array[], streaming: false, reconnects: 0 });
   const recognitionRef = useRef<Recognition | null>(null);
   const vad = useRef({ noise: 0.01, speechMs: 0, silenceMs: 0, bargeMs: 0, lastActivity: 0, heardAt: 0 });
   const callbacks = useRef({ onUtterance, onBargeIn, onError, onTimeout });
@@ -76,10 +124,11 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
 
   // --- Capturing one turn ---------------------------------------------------
 
-  const stopRecorder = useCallback((send: boolean) => {
+  const stopRecorder = useCallback((send: boolean, live: Promise<string | null> | null = null) => {
     const current = recorderRef.current;
     if (!current) return;
     current.send = send;
+    current.live = live;
     if (current.recorder.state === "recording") current.recorder.stop();
     recorderRef.current = null;
   }, []);
@@ -116,20 +165,28 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
     if (!stream) return;
     const mimeType = recordingMimeType();
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-    const entry = { recorder, chunks: [] as Blob[], startedAt: performance.now(), send: false };
+    const entry = {
+      recorder,
+      chunks: [] as Blob[],
+      startedAt: performance.now(),
+      send: false,
+      live: null as Promise<string | null> | null,
+    };
     recorder.ondataavailable = (event) => {
       if (event.data.size) entry.chunks.push(event.data);
     };
     recorder.onstop = async () => {
       if (!entry.send || phaseRef.current === "off") return;
       const blob = new Blob(entry.chunks, { type: recorder.mimeType || "audio/webm" });
-      if (blob.size < 1200) {
+      if (!entry.live && blob.size < 1200) {
         listenRef.current();
         return;
       }
       setPhase("transcribing");
       try {
-        const text = await transcribeRecording(blob);
+        // Live words when they came through; otherwise upload the recording.
+        let text = entry.live ? await entry.live : null;
+        if (text === null) text = blob.size < 1200 ? "" : await transcribeRecording(blob);
         if (phaseRef.current !== "transcribing") return;
         if (text) deliver(text);
         else listenRef.current();
@@ -178,15 +235,112 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
     }
   }, [deliver]);
 
+  // --- Live transcription ---------------------------------------------------
+
+  const pcmOf = useCallback((frames: Float32Array[]) => {
+    const rate = contextRef.current?.sampleRate;
+    return rate && frames.length ? toPcm16([joinFrames(frames)], rate) : new Int16Array(0);
+  }, []);
+
+  /** Microphone samples: kept as pre-roll while listening, streamed during a live turn. */
+  const onMicFrame = useCallback(
+    (frame: Float32Array) => {
+      const audio = liveAudio.current;
+      const rate = contextRef.current?.sampleRate ?? 48_000;
+      if (audio.streaming) {
+        audio.pending.push(frame);
+        if (audio.pending.reduce((total, item) => total + item.length, 0) >= (rate * LIVE_SEND_MS) / 1000) {
+          liveRef.current?.push(pcmOf(audio.pending));
+          audio.pending = [];
+        }
+      } else if (phaseRef.current === "listening" || phaseRef.current === "hearing") {
+        audio.preRoll.push(frame);
+        let kept = audio.preRoll.reduce((total, item) => total + item.length, 0);
+        while (audio.preRoll.length > 1 && kept - audio.preRoll[0]!.length >= (rate * PRE_ROLL_MS) / 1000) {
+          kept -= audio.preRoll.shift()!.length;
+        }
+      }
+    },
+    [pcmOf],
+  );
+
+  /** The member started talking: stream the turn, starting with the pre-roll. */
+  const beginLiveTurn = useCallback(() => {
+    const audio = liveAudio.current;
+    if (!liveRef.current?.ready) return;
+    audio.streaming = true;
+    audio.pending = audio.preRoll;
+    audio.preRoll = [];
+  }, []);
+
+  /** The turn ended: its words (null: live transcription failed or wasn't running). */
+  const finishLiveTurn = useCallback((): Promise<string | null> | null => {
+    const audio = liveAudio.current;
+    const live = liveRef.current;
+    if (!audio.streaming || !live) return null;
+    audio.streaming = false;
+    const last = pcmOf(audio.pending);
+    audio.pending = [];
+    return live.commit(last);
+  }, [pcmOf]);
+
+  /** The turn was cut short (interrupted, muted): drop what was streamed. */
+  const abandonLiveTurn = useCallback(() => {
+    const audio = liveAudio.current;
+    if (audio.streaming) liveRef.current?.discard();
+    audio.streaming = false;
+    audio.pending = [];
+    audio.preRoll = [];
+  }, []);
+
+  const startLive = useCallback(
+    async (context: AudioContext, source: MediaStreamAudioSourceNode) => {
+      if (!context.audioWorklet || typeof WebSocket === "undefined") return;
+      try {
+        const url = URL.createObjectURL(new Blob([MIC_TAP_WORKLET], { type: "text/javascript" }));
+        await context.audioWorklet.addModule(url);
+        URL.revokeObjectURL(url);
+      } catch {
+        return; // no live transcription in this browser: turns are uploaded
+      }
+      if (contextRef.current !== context) return;
+      const tap = new AudioWorkletNode(context, "coach-mic-tap");
+      tap.port.onmessage = (event: MessageEvent<Float32Array>) => onMicFrame(event.data);
+      source.connect(tap);
+      // Silent output, so the browser keeps the tap running.
+      const mute = context.createGain();
+      mute.gain.value = 0;
+      tap.connect(mute).connect(context.destination);
+      tapRef.current = tap;
+
+      const audio = liveAudio.current;
+      const live: LiveTranscriber = new LiveTranscriber(() => {
+        // The session ended (time limit, network): reconnect for the next turn.
+        if (liveRef.current !== live || phaseRef.current === "off" || live.disabled) return;
+        if (audio.reconnects++ >= MAX_RECONNECTS) return;
+        setTimeout(() => {
+          if (liveRef.current === live && phaseRef.current !== "off")
+            void live.connect().then((ok) => {
+              if (ok) audio.reconnects = 0;
+            });
+        }, 500);
+      });
+      liveRef.current = live;
+      void live.connect();
+    },
+    [onMicFrame],
+  );
+
   const listen = useCallback(() => {
     if (phaseRef.current === "off") return;
+    abandonLiveTurn();
     stopRecorder(false);
     stopRecognition();
     Object.assign(vad.current, { speechMs: 0, silenceMs: 0, bargeMs: 0, lastActivity: performance.now() });
     setPhase("listening");
     if (serverTranscription) startRecorder();
     else startRecognition();
-  }, [serverTranscription, setPhase, startRecognition, startRecorder, stopRecognition, stopRecorder]);
+  }, [abandonLiveTurn, serverTranscription, setPhase, startRecognition, startRecorder, stopRecognition, stopRecorder]);
   useEffect(() => {
     listenRef.current = listen;
   }, [listen]);
@@ -199,6 +353,11 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
     timerRef.current = null;
     stopRecorder(false);
     stopRecognition();
+    liveRef.current?.close();
+    liveRef.current = null;
+    tapRef.current?.disconnect();
+    tapRef.current = null;
+    liveAudio.current = { preRoll: [], pending: [], streaming: false, reconnects: 0 };
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     void contextRef.current?.close().catch(() => undefined);
@@ -241,6 +400,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
         state.heardAt = now;
         state.lastActivity = now;
         setPhase("hearing");
+        if (serverTranscription) beginLiveTurn();
       } else if (
         serverTranscription &&
         recorderRef.current &&
@@ -257,7 +417,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
         serverTranscription &&
         (state.silenceMs >= END_OF_TURN_SILENCE_MS || now - state.heardAt > MAX_RECORDING_SECONDS * 1000)
       )
-        stopRecorder(true);
+        stopRecorder(true, finishLiveTurn());
     } else if (current === "waiting") {
       state.lastActivity = now;
       const loud = coachSpeakingRef.current && rms > Math.max(threshold * 2.5, 0.06);
@@ -273,7 +433,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
       stop();
       callbacks.current.onTimeout();
     }
-  }, [listen, serverTranscription, setPhase, startRecorder, stop, stopRecorder]);
+  }, [beginLiveTurn, finishLiveTurn, listen, serverTranscription, setPhase, startRecorder, stop, stopRecorder]);
 
   const tickRef = useRef(tick);
   useEffect(() => {
@@ -299,16 +459,18 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
       const context = new Context();
       const analyser = context.createAnalyser();
       analyser.fftSize = 1024;
-      context.createMediaStreamSource(stream).connect(analyser);
+      const source = context.createMediaStreamSource(stream);
+      source.connect(analyser);
       contextRef.current = context;
       analyserRef.current = analyser;
+      if (serverTranscription) void startLive(context, source);
     }
     vad.current.noise = 0.01;
     phaseRef.current = "listening";
     timerRef.current = setInterval(() => tickRef.current(), TICK_MS);
     listen();
     return true;
-  }, [listen]);
+  }, [listen, serverTranscription, startLive]);
 
   /** The coach finished (or the turn failed): listen for the member again. */
   const resume = useCallback(() => {
