@@ -6,6 +6,13 @@ import { env } from "@/env";
 export const AI_MODEL = "claude-opus-5-5";
 
 /**
+ * Spoken turns (voice chat, mic messages): a member is listening, so the
+ * reply should start quickly. Same refusal fallback as AI_MODEL; typed chat
+ * and the safety classifier stay on AI_MODEL.
+ */
+export const VOICE_MODEL = "claude-sonnet-5-5";
+
+/**
  * Server-side refusal fallback: if Claude's safety classifiers decline a
  * request, the API re-runs it on Anthropic's recommended fallback model
  * instead of returning a refusal (beta `server-side-fallback-2026-07-01`).

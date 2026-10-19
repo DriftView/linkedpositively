@@ -16,6 +16,7 @@ const requests: Anthropic.Beta.MessageCreateParams[] = [];
 
 vi.mock("./claude", () => ({
   AI_MODEL: "claude-opus-5-5",
+  VOICE_MODEL: "claude-sonnet-5-5",
   FALLBACK_BETA: "server-side-fallback-2026-07-01",
   aiConfigured: () => true,
   claude: () => ({
@@ -101,6 +102,24 @@ describe("streamReply", () => {
     expect(requests[1].messages.slice(0, 3)).toEqual([...history, user]);
     expect(requests[0].fallbacks).toBe("default");
     expect(requests[0].betas).toContain("server-side-fallback-2026-07-01");
+  });
+
+  it("uses the model and effort it is given (spoken turns), with the same refusal fallback", async () => {
+    script.push({ text: "Hi.", content: [text("Hi.")], stop_reason: "end_turn" });
+    await streamReply(history, user, context(), () => undefined, { input: 0, output: 0 }, undefined, {
+      model: "claude-sonnet-5-5",
+      effort: "low",
+    });
+    expect(requests[0].model).toBe("claude-sonnet-5-5");
+    expect(requests[0].output_config).toEqual({ effort: "low" });
+    expect(requests[0].fallbacks).toBe("default");
+  });
+
+  it("defaults to the main model at medium effort", async () => {
+    script.push({ text: "Hi.", content: [text("Hi.")], stop_reason: "end_turn" });
+    await streamReply(history, user, context(), () => undefined, { input: 0, output: 0 });
+    expect(requests[0].model).toBe("claude-opus-5-5");
+    expect(requests[0].output_config).toEqual({ effort: "medium" });
   });
 
   it("separates text from different rounds with a blank line", async () => {

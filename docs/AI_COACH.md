@@ -34,7 +34,7 @@ Code: `src/features/ai-coach/`. Database: `src/server/db/schema/ai.ts`, migratio
    - Runs in parallel with the reply, rating the latest message (with up to 3 earlier ones) as none, support, elevated or urgent.
    - Catches indirect wording the keywords miss.
    - The reply isn't finalised until the classifier has finished.
-4. **The reply.** Claude Opus 5.5 (`claude-opus-5-5`) at effort `medium` (`low` for voice turns, so speech starts sooner) with:
+4. **The reply.** Claude Opus 5.5 (`claude-opus-5-5`) at effort `medium` for typed messages. Spoken turns (hands-free voice chat and mic messages) use Claude Sonnet 5.5 (`claude-sonnet-5-5`, `VOICE_MODEL` in `claude.ts`) at effort `low`, so speech starts sooner; same refusal fallback, and the safety classifier stays on Opus. The reply is saved with the model that wrote it. Both get:
    - the static system prompt (`prompt.ts`, cached);
    - the full stored conversation (tool calls and thinking blocks included, never edited);
    - four tools (`tools.ts`):
@@ -118,8 +118,9 @@ Each case below has a defined reply. The member always sees how to reach people,
 - **Replaying a reply:** `POST /api/ai/speech` reads a saved reply in the coach's voice. With `{ preview }` it reads a fixed sample sentence for the coach picker. It never voices arbitrary text.
 - **Playback** (`use-coach-voice.ts`): one Web Audio context, unlocked on the member's first tap, which also lets iOS play later chunks.
 - **Hands-free voice chat** (`use-hands-free.ts`, the voice chat button next to the mic):
-  - An open mic with voice activity detection (echo cancellation and noise suppression on). The member just talks; a 0.9 s pause ends their turn.
-  - With ElevenLabs, the recording is transcribed (`scribe_v1`, sound tags off). Otherwise, the browser's speech recognition is used.
+  - An open mic with voice activity detection (echo cancellation and noise suppression on). The member just talks; a 0.55 s pause ends their turn (`END_OF_TURN_SILENCE_MS`).
+  - With ElevenLabs, each turn is **transcribed live** while the member talks (`live-transcription.ts`, real-time `scribe_v2_realtime`), so the words are ready when they stop. The browser gets a single-use token from `POST /api/ai/transcription-token` (the API key stays on the server). Audio is only sent from just before speech is detected (a 0.5 s pre-roll) to the end of the turn; our pause detection ends the turn (manual commits).
+  - **Fallback:** each turn is also recorded. If live transcription is unavailable, breaks, or is slow (over 4 s), the recording is uploaded and transcribed as before (`scribe_v1`, sound tags off). Without ElevenLabs, the browser's speech recognition is used. Push-to-talk mic messages always upload.
   - The words are sent, the coach speaks, then it listens again.
   - **Interrupting:** talking over the coach for about a third of a second stops it, and so does "Stop talking". A message said while a reply is still arriving is sent once that turn is saved.
   - **Captions** of the current sentence show above the conversation. The full reply is in the conversation as usual.

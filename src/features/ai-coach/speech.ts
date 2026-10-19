@@ -108,3 +108,28 @@ export async function transcribeSpeech(audio: Blob): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * A single-use token (15 minutes, one connection) for ElevenLabs' real-time
+ * transcription, so the browser can stream a voice chat's audio while the
+ * member talks without seeing the API key. Null when unavailable.
+ */
+export async function createRealtimeTranscriptionToken(): Promise<string | null> {
+  if (!env.ELEVENLABS_API_KEY) return null;
+  try {
+    const response = await fetch(`${BASE}/single-use-token/realtime_scribe`, {
+      method: "POST",
+      headers: { "xi-api-key": env.ELEVENLABS_API_KEY },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      logger.warn({ status: response.status }, "elevenlabs realtime token failed");
+      return null;
+    }
+    const data = (await response.json()) as { token?: string };
+    return data.token ?? null;
+  } catch (error) {
+    logger.warn({ err: error instanceof Error ? error.message : String(error) }, "elevenlabs realtime token failed");
+    return null;
+  }
+}
