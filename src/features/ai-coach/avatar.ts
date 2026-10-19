@@ -9,6 +9,7 @@ import { logger } from "@/server/logger";
  * ours. The browser gets a short-lived session token; the API key stays here.
  */
 
+
 const SESSION_TOKEN_URL = "https://api.anam.ai/v1/auth/session-token";
 /** Anam's current real-time avatar model. */
 const AVATAR_MODEL = "cara-4";
