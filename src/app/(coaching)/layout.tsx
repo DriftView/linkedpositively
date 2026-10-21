@@ -1,4 +1,5 @@
 import { ParticipantShell } from "@/components/app/participant-shell";
+import { CoachLauncherSlot } from "@/features/ai-coach/components/coach-launcher-slot";
 import { getShellCounts } from "@/features/notifications/counts";
 import { getMyCoach } from "@/features/peer-nav/queries";
 import { requirePermission } from "@/server/auth/session";
@@ -24,6 +25,7 @@ export default async function CoachingLayout({ children }: LayoutProps<"/">) {
       }}
     >
       {children}
+      <CoachLauncherSlot viewer={viewer} basePath="/coaching/ai-coach" />
     </ParticipantShell>
   );
 }

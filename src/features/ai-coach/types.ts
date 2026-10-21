@@ -108,3 +108,19 @@ export type AiStatsDTO = {
   tokens: { input: number; output: number };
   daily: { day: string; messages: number; members: number }[];
 };
+
+/** What the coach opens with (load.ts): the AI Coach page and the floating coach. */
+export type AiCoachData = {
+  conversationId: string | null;
+  title: string | null;
+  initialMessages: ChatMessageDTO[];
+  conversations: ConversationSummaryDTO[];
+  preferences: AiPreferencesDTO;
+  voiceEnabled: boolean;
+  serverVoice: boolean;
+  /** The video coach (Anam) is available: it plays the coach in voice chat, and the coach's photo shows elsewhere. */
+  videoAvailable: boolean;
+  aiAvailable: boolean;
+  timezone: string;
+  firstName: string;
+};

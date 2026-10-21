@@ -150,3 +150,43 @@ export function visemeAt(track: VisemeTrack, ms: number): Viseme {
   }
   return found;
 }
+
+// ---------------------------------------------------------------------------
+// Browser voices (when ElevenLabs isn't available)
+// ---------------------------------------------------------------------------
+
+export type VoiceGender = "female" | "male";
+
+/** Browsers don't say a voice's gender: well-known voice names do (Apple, Google, Microsoft, Amazon). */
+const FEMALE_VOICES =
+  /\bfemale\b|samantha|victoria|karen|moira|tessa|fiona|allison|ava\b|susan|zira|aria|jenny|hazel|libby|sonia|natasha|michelle|emma|joanna|salli|kimberly|kendra|ivy|serena|nicky|google us english/i;
+const MALE_VOICES = /\bmale\b|daniel|alex\b|fred|tom\b|david|mark\b|guy\b|ryan|george|james|aaron|arthur|rishi|matthew|joey|justin/i;
+/** Voices that sound less robotic. */
+const NATURAL_VOICES = /natural|neural|enhanced|premium|online|google/i;
+
+/**
+ * The browser voice for the coach: English, the coach's gender where the
+ * voice's name tells, and the most natural-sounding of those. Deterministic,
+ * so a reply keeps one voice. Null when the browser has no English voice.
+ */
+export function pickBrowserVoice<T extends { name: string; lang: string }>(
+  voices: readonly T[],
+  gender: VoiceGender | null,
+): T | null {
+  const english = voices.filter((voice) => /^en/i.test(voice.lang));
+  if (!english.length) return null;
+  const matches = (voice: T) =>
+    gender === "female"
+      ? FEMALE_VOICES.test(voice.name) && !MALE_VOICES.test(voice.name.replace(/female/i, ""))
+      : gender === "male"
+        ? MALE_VOICES.test(voice.name.replace(/female/i, "")) && !/female/i.test(voice.name)
+        : true;
+  const score = (voice: T) =>
+    (matches(voice) ? 4 : 0) + (NATURAL_VOICES.test(voice.name) ? 2 : 0) + (/en[-_]US/i.test(voice.lang) ? 1 : 0);
+  return english.reduce((best, voice) => (score(voice) > score(best) ? voice : best));
+}
+
+/** The browser voice gender for a coach's pronouns (they/them: whichever sounds most natural). */
+export function voiceGenderFor(pronouns: "she" | "he" | "they"): VoiceGender | null {
+  return pronouns === "she" ? "female" : pronouns === "he" ? "male" : null;
+}

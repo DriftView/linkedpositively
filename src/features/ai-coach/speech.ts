@@ -4,13 +4,15 @@ import type { AiCoachVoice } from "@/server/db/schema/ai";
 import { logger } from "@/server/logger";
 import { coachVoice } from "./coach-design";
 import { MAX_SPOKEN_CHARS } from "./constants";
+import { elevenLabsDown, reportElevenLabsFailure, reportElevenLabsSuccess } from "./voice-status";
 import { alignmentToVisemes, type VisemeTrack } from "./voice-lib";
 
 /**
  * Voice through ElevenLabs: text to speech for the coach's replies (with
  * per-character timing for lip sync), and speech to text for members who talk
  * instead of typing. When ElevenLabs is not configured (or fails) callers get
- * null and the browser falls back to its own speech features.
+ * null and the browser falls back to its own speech features. While ElevenLabs
+ * is out of credits or down (voice-status.ts), speech is skipped at once.
  */
 
 const BASE = "https://api.elevenlabs.io/v1";
@@ -40,7 +42,7 @@ export async function synthesizeSpeech(
   voice: AiCoachVoice | null,
   context: { previousText?: string; nextText?: string; signal?: AbortSignal } = {},
 ): Promise<SpokenAudio | null> {
-  if (!env.ELEVENLABS_API_KEY || !text.trim()) return null;
+  if (!env.ELEVENLABS_API_KEY || !text.trim() || elevenLabsDown()) return null;
   const voiceId = voice ? coachVoice(voice).elevenLabsId : env.ELEVENLABS_VOICE_ID;
   try {
     const response = await fetch(
@@ -62,8 +64,10 @@ export async function synthesizeSpeech(
     );
     if (!response.ok) {
       logger.warn({ status: response.status }, "elevenlabs tts failed");
+      await reportElevenLabsFailure(response);
       return null;
     }
+    reportElevenLabsSuccess();
     const data = (await response.json()) as TimestampResponse;
     if (!data.audio_base64) return null;
     const alignment = data.alignment;
@@ -78,6 +82,7 @@ export async function synthesizeSpeech(
   } catch (error) {
     if (context.signal?.aborted) return null;
     logger.warn({ err: error instanceof Error ? error.message : String(error) }, "elevenlabs tts failed");
+    await reportElevenLabsFailure(null);
     return null;
   }
 }
@@ -99,12 +104,15 @@ export async function transcribeSpeech(audio: Blob): Promise<string | null> {
     });
     if (!response.ok) {
       logger.warn({ status: response.status }, "elevenlabs stt failed");
+      await reportElevenLabsFailure(response);
       return null;
     }
+    reportElevenLabsSuccess();
     const data = (await response.json()) as { text?: string };
     return typeof data.text === "string" ? data.text.trim() : null;
   } catch (error) {
     logger.warn({ err: error instanceof Error ? error.message : String(error) }, "elevenlabs stt failed");
+    await reportElevenLabsFailure(null);
     return null;
   }
 }
@@ -124,6 +132,7 @@ export async function createRealtimeTranscriptionToken(): Promise<string | null>
     });
     if (!response.ok) {
       logger.warn({ status: response.status }, "elevenlabs realtime token failed");
+      await reportElevenLabsFailure(response);
       return null;
     }
     const data = (await response.json()) as { token?: string };

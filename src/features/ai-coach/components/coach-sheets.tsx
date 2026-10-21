@@ -24,6 +24,7 @@ export function HistorySheet({
   currentId,
   basePath,
   timezone,
+  onOpen,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -31,6 +32,8 @@ export function HistorySheet({
   currentId: string | null;
   basePath: string;
   timezone: string;
+  /** Opens conversations in place (the floating coach) instead of navigating to the AI Coach page; null starts a new one. */
+  onOpen?: (conversationId: string | null) => void;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -47,7 +50,8 @@ export function HistorySheet({
     }
     toast.success("Conversation cleared");
     onOpenChange(false);
-    if (id === currentId) router.push(basePath);
+    if (onOpen) onOpen(id === currentId ? null : currentId);
+    else if (id === currentId) router.push(basePath);
     else router.refresh();
   }
 
@@ -77,7 +81,13 @@ export function HistorySheet({
                 >
                   <Link
                     href={`${basePath}?c=${conversation.id}`}
-                    onClick={() => onOpenChange(false)}
+                    onClick={(event) => {
+                      onOpenChange(false);
+                      if (onOpen) {
+                        event.preventDefault();
+                        onOpen(conversation.id);
+                      }
+                    }}
                     aria-current={conversation.id === currentId ? "page" : undefined}
                     className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
                   >

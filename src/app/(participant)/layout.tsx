@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { ParticipantShell } from "@/components/app/participant-shell";
+import { CoachLauncherSlot } from "@/features/ai-coach/components/coach-launcher-slot";
 import { ColorThemeScope } from "@/features/gamification/components/color-theme-scope";
 import { LevelUpGate } from "@/features/gamification/components/level-up-gate";
 import { getColorThemeFor } from "@/features/gamification/queries";
@@ -36,6 +37,7 @@ export default async function ParticipantLayout({ children }: LayoutProps<"/">) 
         {children}
         {can(viewer, "gamification.earn") ? <LevelUpGate userId={viewer.id} /> : null}
         <SurveyPrompt />
+        <CoachLauncherSlot viewer={viewer} basePath="/ai-coach" />
       </ParticipantShell>
     </ColorThemeScope>
   );

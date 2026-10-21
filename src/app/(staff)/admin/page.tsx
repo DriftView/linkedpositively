@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -20,6 +21,7 @@ import { UserAvatar } from "@/components/app/user-avatar";
 import { StatCard, TimeAgo } from "@/features/admin/components/bits";
 import { AuditList } from "@/features/admin/components/user-sections";
 import { WeekChart } from "@/features/admin/components/week-chart";
+import { VoiceStatusBanner } from "@/features/ai-coach/components/admin/voice-status-banner";
 import { getDashboard } from "@/features/admin/queries";
 import { can, requirePermission } from "@/server/auth/session";
 
@@ -54,6 +56,9 @@ export default async function AdminDashboardPage() {
   return (
     <div className="animate-rise">
       <PageHeader title={`Hello, ${firstName}`} description="The study at a glance. Numbers cover the last 7 days unless noted." />
+      {can(viewer, "ai.review") || can(viewer, "reports.view") ? <Suspense fallback={null}>
+          <VoiceStatusBanner timezone={viewer.timezone} />
+        </Suspense> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Enrolled" value={data.enrolled} hint={`${data.participants} participants · ${data.control} control`} icon={<UsersRound />} href="/admin/users" />

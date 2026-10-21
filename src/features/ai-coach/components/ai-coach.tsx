@@ -1,13 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AudioLines,
+  ChevronDown,
+  Ellipsis,
   History,
   LifeBuoy,
   LocateFixed,
+  Maximize2,
   Mic,
+  Phone,
   Plus,
   Send,
   Settings2,
@@ -20,15 +24,22 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { AutoTextarea } from "@/features/peer-nav/components/auto-textarea";
 import { cn } from "@/lib/utils";
 import { feedbackAction } from "../actions";
+import type { AiCoachId } from "@/server/db/schema/ai";
 import { coachVoice, resolveCoach } from "../coach-design";
 import { MAX_MESSAGE_LENGTH, STARTER_PROMPTS } from "../constants";
 import { speakableText } from "../prompt";
-import type { AiCards, AiPreferencesDTO, AiStreamEvent, ChatMessageDTO, ConversationSummaryDTO } from "../types";
-import { SpeechChunker } from "../voice-lib";
+import type { AiCards, AiCoachData, AiStreamEvent, ChatMessageDTO } from "../types";
+import { SpeechChunker, voiceGenderFor } from "../voice-lib";
 import type { CoachState } from "./coach-avatar";
 import { CoachCall } from "./coach-call";
 import { CoachPicker } from "./coach-picker";
@@ -40,20 +51,16 @@ import { useHandsFree } from "./use-hands-free";
 import { useVideoCoach } from "./use-video-coach";
 import { useVoiceInput } from "./use-voice-input";
 
-type Props = {
+type Props = AiCoachData & {
   basePath: string;
-  conversationId: string | null;
-  title: string | null;
-  initialMessages: ChatMessageDTO[];
-  conversations: ConversationSummaryDTO[];
-  preferences: AiPreferencesDTO;
-  voiceEnabled: boolean;
-  serverVoice: boolean;
-  /** The video coach (Anam) is available: it plays the coach in voice chat, and the coach's photo shows elsewhere. */
-  videoAvailable: boolean;
-  aiAvailable: boolean;
-  timezone: string;
-  firstName: string;
+  /** "panel": the floating coach (coach-launcher.tsx), which opens conversations in place instead of navigating. */
+  variant?: "page" | "panel";
+  /** Panel only: open a conversation (null starts a new one). */
+  onOpenConversation?: (conversationId: string | null) => void;
+  /** Panel only: minimize the panel. */
+  onClose?: () => void;
+  /** The member chose another coach. */
+  onCoachChange?: (coachId: AiCoachId) => void;
 };
 
 const PENDING = "pending";
@@ -82,6 +89,9 @@ type SendOptions = { viaVoice?: boolean; handsFree?: boolean };
  */
 export function AiCoach(props: Props) {
   const router = useRouter();
+  const panel = props.variant === "panel";
+  // The page shows the coach stage beside the chat on large screens; the panel is always compact.
+  const compactOnly = panel ? undefined : "lg:hidden";
   const [conversationId, setConversationId] = useState(props.conversationId);
   const [title, setTitle] = useState(props.title);
   const [messages, setMessages] = useState<ChatMessageDTO[]>(props.initialMessages);
@@ -104,7 +114,12 @@ export function AiCoach(props: Props) {
   const coach = resolveCoach(preferences.design);
   const onVoiceIdle = useCallback(() => resumeListeningRef.current(), []);
   const video = useVideoCoach();
-  const voice = useCoachVoice({ pitch: coachVoice(coach.voice).pitch, onIdle: onVoiceIdle, video: video.sink });
+  const voice = useCoachVoice({
+    pitch: coachVoice(coach.voice).pitch,
+    gender: voiceGenderFor(coach.pronouns),
+    onIdle: onVoiceIdle,
+    video: video.sink,
+  });
   const crisis = liveCrisis ?? highestCrisis(messages);
 
   const scrollToEnd = useCallback(() => {
@@ -207,7 +222,7 @@ export function AiCoach(props: Props) {
                 if (!conversationId) {
                   setConversationId(event.conversationId);
                   setTitle(event.title);
-                  window.history.replaceState(null, "", `${props.basePath}?c=${event.conversationId}`);
+                  if (!panel) window.history.replaceState(null, "", `${props.basePath}?c=${event.conversationId}`);
                 }
                 setConversations((current) => [
                   { id: event.conversationId, title: event.title, lastMessageAt: now, messageCount: 0 },
@@ -267,7 +282,7 @@ export function AiCoach(props: Props) {
         if (queued) void sendRef.current(queued.text, queued.options);
       }
     },
-    [conversationId, near, preferences.autoSpeak, props.basePath, props.serverVoice, props.voiceEnabled, voice],
+    [conversationId, near, panel, preferences.autoSpeak, props.basePath, props.serverVoice, props.voiceEnabled, voice],
   );
   const sendRef = useRef(send);
   useEffect(() => {
@@ -395,6 +410,13 @@ export function AiCoach(props: Props) {
     setSheet("coach");
   }
 
+  function newConversation() {
+    if (props.onOpenConversation) props.onOpenConversation(null);
+    else router.push(props.basePath);
+  }
+
+  const fullPageHref = conversationId ? `${props.basePath}?c=${conversationId}` : props.basePath;
+
   const headerButtons = (
     <div className="flex items-center gap-0.5">
       <Button
@@ -411,7 +433,7 @@ export function AiCoach(props: Props) {
         size="icon-lg"
         className="size-9 sm:size-10"
         aria-label="New conversation"
-        onClick={() => router.push(props.basePath)}
+        onClick={newConversation}
         disabled={empty && !conversationId}
       >
         <Plus aria-hidden />
@@ -429,9 +451,13 @@ export function AiCoach(props: Props) {
   );
 
   return (
-    <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      {/* Coach stage (desktop) */}
-      <aside className="hidden lg:block">
+    <div
+      className={
+        panel ? "flex h-full min-h-0 flex-col" : "mx-auto grid max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]"
+      }
+    >
+      {/* Coach stage (desktop page) */}
+      <aside className={panel ? "hidden" : "hidden lg:block"}>
         <div className="sticky top-20 flex flex-col items-center rounded-2xl border bg-card p-5 text-center shadow-soft">
           <CoachPortrait
             still={inCall}
@@ -467,10 +493,14 @@ export function AiCoach(props: Props) {
       {/* Conversation */}
       <section
         aria-label="Conversation with your AI coach"
-        className="flex h-[calc(100dvh-12.5rem)] min-h-[26rem] flex-col overflow-hidden rounded-2xl border bg-card shadow-soft lg:h-[calc(100dvh-8.5rem)]"
+        className={
+          panel
+            ? "flex min-h-0 flex-1 flex-col overflow-hidden bg-card"
+            : "flex h-[calc(100dvh-12.5rem)] min-h-[26rem] flex-col overflow-hidden rounded-2xl border bg-card shadow-soft lg:h-[calc(100dvh-8.5rem)]"
+        }
       >
         <header className="flex items-center gap-2 border-b px-2.5 py-2.5 sm:gap-3 sm:px-3 lg:px-4">
-          <div className="lg:hidden">
+          <div className={compactOnly}>
             <CoachPortrait
               still={inCall}
               coach={coach}
@@ -478,29 +508,69 @@ export function AiCoach(props: Props) {
               state={avatarState}
               face={voice.face}
               listen={handsFree.listenLevel}
-              size={52}
+              size={panel ? 44 : 52}
               className="max-[359px]:size-10!"
             />
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="truncate font-sans text-[0.95rem] font-semibold">
-              <span className="lg:hidden">{coach.name}</span>
-              <span className="hidden lg:inline">{title ?? "New conversation"}</span>
+              <span className={compactOnly}>{coach.name}</span>
+              {panel ? null : <span className="hidden lg:inline">{title ?? "New conversation"}</span>}
             </h2>
-            <p className="truncate text-xs text-muted-foreground lg:hidden" aria-live="polite">
+            <p className={cn("truncate text-xs text-muted-foreground", compactOnly)} aria-live="polite">
               {statusLine}
             </p>
           </div>
-          <div className="lg:hidden">{headerButtons}</div>
+          {panel ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-lg" className="size-9 sm:size-10" aria-label="Coach menu">
+                  <Ellipsis aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-52">
+                <DropdownMenuItem onSelect={() => setSheet("history")}>
+                  <History aria-hidden /> Your conversations
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={newConversation} disabled={empty && !conversationId}>
+                  <Plus aria-hidden /> New conversation
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={openPicker}>
+                  <UserRound aria-hidden /> Choose your coach
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setSheet("settings")}>
+                  <Settings2 aria-hidden /> Coach settings
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={fullPageHref} onClick={props.onClose}>
+                    <Maximize2 aria-hidden /> Open full page
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="lg:hidden">{headerButtons}</div>
+          )}
           <Button
             variant="ghost"
             size="icon-lg"
-            className="size-9 text-destructive sm:size-10 lg:hidden"
+            className={cn("size-9 text-destructive sm:size-10", compactOnly)}
             aria-label="Get help now"
             onClick={() => setSheet("help")}
           >
             <LifeBuoy aria-hidden />
           </Button>
+          {panel ? (
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              className="size-9 sm:size-10"
+              aria-label="Minimize coach"
+              onClick={props.onClose}
+            >
+              <ChevronDown aria-hidden className="sm:-rotate-90" />
+            </Button>
+          ) : null}
         </header>
 
         {!props.aiAvailable ? (
@@ -518,7 +588,7 @@ export function AiCoach(props: Props) {
         >
           {empty && !handsFree.active ? (
             <div className="mx-auto flex max-w-md flex-col items-center py-6 text-center">
-              <div className="lg:hidden">
+              <div className={compactOnly}>
                 <CoachPortrait
                   still={inCall}
                   coach={coach}
@@ -534,7 +604,7 @@ export function AiCoach(props: Props) {
                 Ask me about HIV, PrEP and PEP, testing, stress or wellness. I can find places near you and help you
                 reach your peer navigator or the study team. Type, tap the mic, or start a voice chat and just talk.
               </p>
-              <ul className="mt-5 grid w-full gap-2 sm:grid-cols-2">
+              <ul className={cn("mt-5 grid w-full gap-2", !panel && "sm:grid-cols-2")}>
                 {STARTER_PROMPTS.map((prompt) => (
                   <li key={prompt}>
                     <button
@@ -717,12 +787,12 @@ export function AiCoach(props: Props) {
                 variant="secondary"
                 size="icon-lg"
                 className="size-11 shrink-0 rounded-full"
-                aria-label="Start a voice chat"
-                title="Voice chat: just talk, no buttons"
+                aria-label="Call your coach"
+                title="Call: just talk, no buttons"
                 onClick={() => void startHandsFree()}
                 disabled={sending || mic.state !== "idle" || inCall}
               >
-                <AudioLines aria-hidden />
+                <Phone aria-hidden />
               </Button>
             ) : null}
             <Button
@@ -735,7 +805,7 @@ export function AiCoach(props: Props) {
               {sending ? <Spinner /> : <Send aria-hidden />}
             </Button>
           </div>
-          <p className="mt-1.5 px-1 text-[0.7rem] text-muted-foreground lg:hidden">
+          <p className={cn("mt-1.5 px-1 text-[0.7rem] text-muted-foreground", compactOnly)}>
             AI coach, not a doctor. It can make mistakes. In an emergency, call 911 or 988.
           </p>
         </form>
@@ -774,6 +844,7 @@ export function AiCoach(props: Props) {
         currentId={conversationId}
         basePath={props.basePath}
         timezone={props.timezone}
+        onOpen={props.onOpenConversation}
       />
       <SettingsSheet
         open={sheet === "settings"}
@@ -789,7 +860,10 @@ export function AiCoach(props: Props) {
         open={sheet === "coach"}
         onOpenChange={(open) => setSheet(open ? "coach" : null)}
         design={preferences.design}
-        onSaved={(design) => setPreferences((current) => ({ ...current, design }))}
+        onSaved={(design) => {
+          setPreferences((current) => ({ ...current, design }));
+          props.onCoachChange?.(design.coachId);
+        }}
         voiceEnabled={props.voiceEnabled}
         realistic={props.videoAvailable}
       />

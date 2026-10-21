@@ -1,12 +1,8 @@
 import { Bot } from "lucide-react";
-import { getSettings } from "@/features/admin/settings";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { type Viewer } from "@/server/auth/session";
 import { trackUsage } from "@/server/services/usage";
-import { videoConfigured } from "../avatar";
-import { aiConfigured } from "../claude";
-import { getConversationMessages, getPreferences, listConversations } from "../queries";
-import { voiceConfigured } from "../speech";
+import { loadCoach } from "../load";
 import { AiCoach } from "./ai-coach";
 
 /**
@@ -22,8 +18,9 @@ export async function AiCoachPage({
   basePath: string;
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const settings = await getSettings();
-  if (!settings.aiCoachEnabled) {
+  const requested = Array.isArray(searchParams.c) ? searchParams.c[0] : searchParams.c;
+  const data = await loadCoach(viewer, requested ?? null);
+  if (!data) {
     return (
       <Empty className="mx-auto max-w-lg py-16">
         <EmptyHeader>
@@ -39,30 +36,6 @@ export async function AiCoachPage({
     );
   }
 
-  const requested = Array.isArray(searchParams.c) ? searchParams.c[0] : searchParams.c;
-  const [preferences, conversations, messages] = await Promise.all([
-    getPreferences(viewer.id),
-    listConversations(viewer.id),
-    requested ? getConversationMessages(viewer.id, requested) : Promise.resolve(null),
-  ]);
-  const conversationId = messages ? requested! : null;
-  await trackUsage(viewer.id, "ai_coach_view", { resumed: Boolean(conversationId) });
-
-  return (
-    <AiCoach
-      key={conversationId ?? "new"}
-      basePath={basePath}
-      conversationId={conversationId}
-      title={conversations.find((conversation) => conversation.id === conversationId)?.title ?? null}
-      initialMessages={messages ?? []}
-      conversations={conversations}
-      preferences={preferences}
-      voiceEnabled={settings.aiVoiceEnabled}
-      serverVoice={voiceConfigured()}
-      videoAvailable={settings.aiVoiceEnabled && settings.aiVideoEnabled && voiceConfigured() && videoConfigured()}
-      aiAvailable={aiConfigured()}
-      timezone={viewer.timezone}
-      firstName={viewer.name.split(" ")[0] ?? ""}
-    />
-  );
+  await trackUsage(viewer.id, "ai_coach_view", { resumed: Boolean(data.conversationId) });
+  return <AiCoach key={data.conversationId ?? "new"} basePath={basePath} {...data} />;
 }

@@ -5,7 +5,7 @@ import { recordClientEventAction } from "../actions";
 import { levelAt } from "../pcm";
 import { speakableText } from "../prompt";
 import type { SpeechChunkDTO } from "../types";
-import { textToVisemes, visemeAt, type VisemeTrack } from "../voice-lib";
+import { pickBrowserVoice, textToVisemes, visemeAt, type VisemeTrack, type VoiceGender } from "../voice-lib";
 import { newFace, type CoachFace } from "./coach-avatar";
 import type { VideoSink } from "./use-video-coach";
 
@@ -45,9 +45,16 @@ function base64ToBuffer(base64: string) {
  */
 export function useCoachVoice({
   pitch = 1,
+  gender = null,
   onIdle,
   video,
-}: { pitch?: number; onIdle?: () => void; video?: React.RefObject<VideoSink | null> } = {}) {
+}: {
+  pitch?: number;
+  /** The coach's browser voice when ElevenLabs isn't available (a female coach gets a female voice). */
+  gender?: VoiceGender | null;
+  onIdle?: () => void;
+  video?: React.RefObject<VideoSink | null>;
+} = {}) {
   const face = useRef<CoachFace>(newFace());
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -67,13 +74,20 @@ export function useCoachVoice({
   const videoTurnRef = useRef<VideoSink | null>(null);
   const videoDoneRef = useRef<(() => void) | null>(null);
   const pitchRef = useRef(pitch);
+  const genderRef = useRef(gender);
   const onIdleRef = useRef(onIdle);
   const videoRef = useRef(video);
   useEffect(() => {
     pitchRef.current = pitch;
+    genderRef.current = gender;
     onIdleRef.current = onIdle;
     videoRef.current = video;
-  }, [pitch, onIdle, video]);
+  }, [pitch, gender, onIdle, video]);
+
+  // Some browsers load their voice list in the background: ask early, so the first browser-read reply gets the right voice.
+  useEffect(() => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.getVoices();
+  }, []);
 
   /** Creates or resumes the audio context. Call from a tap or key press (browsers only allow audio after one). */
   const unlock = useCallback(() => {
@@ -206,10 +220,7 @@ export function useCoachVoice({
         return resolve();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.pitch = pitchRef.current;
-      const voices = window.speechSynthesis.getVoices();
-      const preferred =
-        voices.find((voice) => /en[-_]US/i.test(voice.lang) && /natural|neural|samantha|google/i.test(voice.name)) ??
-        voices.find((voice) => /^en/i.test(voice.lang));
+      const preferred = pickBrowserVoice(window.speechSynthesis.getVoices(), genderRef.current);
       if (preferred) utterance.voice = preferred;
       let track: VisemeTrack = [];
       let wordStart = performance.now();

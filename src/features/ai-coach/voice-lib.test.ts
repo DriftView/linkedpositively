@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { alignmentToVisemes, charViseme, SpeechChunker, textToVisemes, visemeAt } from "./voice-lib";
+import {
+  alignmentToVisemes,
+  charViseme,
+  pickBrowserVoice,
+  SpeechChunker,
+  textToVisemes,
+  visemeAt,
+  voiceGenderFor,
+} from "./voice-lib";
 
 function feed(chunker: SpeechChunker, text: string, step = 3) {
   const out: string[] = [];
@@ -66,5 +74,36 @@ describe("visemes", () => {
     expect(visemeAt(track, 1050)).toBe("M");
     expect(visemeAt(track, 1150)).toBe("A");
     expect(visemeAt(track, 1500)).toBe("rest");
+  });
+});
+
+describe("pickBrowserVoice", () => {
+  const voices = [
+    { name: "Microsoft David - English (United States)", lang: "en-US" },
+    { name: "Microsoft Zira - English (United States)", lang: "en-US" },
+    { name: "Google UK English Male", lang: "en-GB" },
+    { name: "Google UK English Female", lang: "en-GB" },
+    { name: "Thomas", lang: "fr-FR" },
+  ];
+
+  it("gives a female coach a female voice, preferring natural-sounding ones", () => {
+    expect(pickBrowserVoice(voices, "female")?.name).toBe("Google UK English Female");
+    expect(pickBrowserVoice(voices.slice(0, 2), "female")?.name).toMatch(/Zira/);
+  });
+
+  it("gives a male coach a male voice", () => {
+    expect(pickBrowserVoice(voices, "male")?.name).toBe("Google UK English Male");
+    expect(pickBrowserVoice(voices.slice(0, 2), "male")?.name).toMatch(/David/);
+  });
+
+  it("falls back to any English voice, and to none without English", () => {
+    expect(pickBrowserVoice([{ name: "Microsoft David", lang: "en-US" }], "female")?.name).toBe("Microsoft David");
+    expect(pickBrowserVoice([{ name: "Thomas", lang: "fr-FR" }], "female")).toBeNull();
+  });
+
+  it("maps pronouns to a voice gender", () => {
+    expect(voiceGenderFor("she")).toBe("female");
+    expect(voiceGenderFor("he")).toBe("male");
+    expect(voiceGenderFor("they")).toBeNull();
   });
 });

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { aiConfigured } from "@/features/ai-coach/claude";
 import { AiStats } from "@/features/ai-coach/components/admin/ai-stats";
+import { VoiceStatusBanner } from "@/features/ai-coach/components/admin/voice-status-banner";
 import { aiStats } from "@/features/ai-coach/queries";
 import { voiceConfigured } from "@/features/ai-coach/speech";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,9 @@ export default async function AiOverviewPage(props: PageProps<"/admin/ai">) {
           ) : null
         }
       />
+      <Suspense fallback={null}>
+        <VoiceStatusBanner timezone={viewer.timezone} showCheckErrors />
+      </Suspense>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <nav aria-label="Period" className="inline-flex rounded-lg bg-muted p-1">
           {PERIODS.map((period) => (

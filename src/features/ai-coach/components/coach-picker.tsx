@@ -19,6 +19,7 @@ import {
   type Coach,
   type CoachDesign,
 } from "../coach-design";
+import { voiceGenderFor } from "../voice-lib";
 import { CoachPortrait } from "./coach-portrait";
 import { useCoachVoice } from "./use-coach-voice";
 
@@ -91,7 +92,7 @@ export function CoachPicker({
   const [draft, setDraft] = useState(design);
   const [saving, setSaving] = useState(false);
   const coach = resolveCoach(draft);
-  const voice = useCoachVoice({ pitch: coachVoice(coach.voice).pitch });
+  const voice = useCoachVoice({ pitch: coachVoice(coach.voice).pitch, gender: voiceGenderFor(coach.pronouns) });
 
   function preview(option: Coach) {
     const id = `preview-${option.id}`;
@@ -193,7 +194,6 @@ export function CoachPicker({
                 );
               })}
             </ul>
-            <p className="mt-2 text-xs text-muted-foreground">More coaches are on the way.</p>
           </fieldset>
 
           <section className="space-y-4" aria-labelledby="picker-style">

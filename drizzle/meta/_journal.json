@@ -43,6 +43,13 @@
       "when": 1792432968487,
       "tag": "0005_fixed_coaches",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792577700323,
+      "tag": "0006_more_coaches",
+      "breakpoints": true
     }
   ]
 }

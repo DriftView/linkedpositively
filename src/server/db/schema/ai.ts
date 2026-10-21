@@ -226,7 +226,7 @@ export const aiKnowledgeArticles = pgTable(
 );
 
 /** The coaches a member can choose (name, voice, photo and video face: features/ai-coach/coach-design.ts). */
-export const AI_COACH_IDS = ["mina"] as const;
+export const AI_COACH_IDS = ["mina", "marcus", "elena", "arthur", "mei", "liam"] as const;
 export type AiCoachId = (typeof AI_COACH_IDS)[number];
 
 /** The drawn coach's look, used when the video coach isn't available. Colors: features/ai-coach/coach-design.ts. */
