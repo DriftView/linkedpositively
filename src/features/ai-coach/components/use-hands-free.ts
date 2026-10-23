@@ -4,24 +4,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { END_OF_TURN_SILENCE_MS, HANDS_FREE_IDLE_MS, MAX_RECORDING_SECONDS } from "../constants";
 import { LiveTranscriber } from "../live-transcription";
 import { toPcm16 } from "../pcm";
+import { TalkOverDetector } from "../voice-lib";
 import { recognitionClass, recordingMimeType, transcribeRecording, type Recognition } from "./use-voice-input";
 
 /**
  * listening: waiting for the member to talk. hearing: they are talking.
  * transcribing: turning their words into text. waiting: the coach is
- * thinking or speaking (the member can talk over it to interrupt).
+ * thinking or speaking (talking then interrupts it and starts the member's next turn).
  */
 export type HandsFreePhase = "off" | "listening" | "hearing" | "transcribing" | "waiting";
 
 const TICK_MS = 50;
 /** Speech this long starts the member's turn (shorter blips are noise). */
 const SPEECH_START_MS = 150;
-/** Talking over the coach this long interrupts it. */
-const BARGE_IN_MS = 350;
+/** Talking while the coach is still thinking this long starts the member's next turn. */
+const TALK_WHILE_THINKING_MS = 250;
 /** Without speech, the recording restarts this often so it never grows large. */
 const RECORDER_RESET_MS = 30_000;
-/** Audio kept from just before speech is detected, so live transcription hears the turn's first syllable. */
-const PRE_ROLL_MS = 500;
+/**
+ * Audio kept from just before speech is detected, so live transcription hears the turn's first syllable
+ * (also while the coach talks: an interruption is detected a moment after it starts).
+ */
+const PRE_ROLL_MS = 800;
 /** Live audio goes out in pieces about this long. */
 const LIVE_SEND_MS = 100;
 /** Reconnects in a row before live transcription gives up for the call (turns are uploaded instead). */
@@ -99,9 +103,15 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
   const liveRef = useRef<LiveTranscriber | null>(null);
   const tapRef = useRef<AudioWorkletNode | null>(null);
   /** Mic audio for live transcription: the pre-roll while listening, then the turn being streamed. */
-  const liveAudio = useRef({ preRoll: [] as Float32Array[], pending: [] as Float32Array[], streaming: false, reconnects: 0 });
+  const liveAudio = useRef({
+    preRoll: [] as Float32Array[],
+    pending: [] as Float32Array[],
+    streaming: false,
+    reconnects: 0,
+  });
   const recognitionRef = useRef<Recognition | null>(null);
-  const vad = useRef({ noise: 0.01, speechMs: 0, silenceMs: 0, bargeMs: 0, lastActivity: 0, heardAt: 0 });
+  const vad = useRef({ noise: 0.01, speechMs: 0, silenceMs: 0, lastActivity: 0, heardAt: 0 });
+  const talkOver = useRef(new TalkOverDetector());
   const callbacks = useRef({ onUtterance, onBargeIn, onError, onTimeout });
   useEffect(() => {
     callbacks.current = { onUtterance, onBargeIn, onError, onTimeout };
@@ -253,7 +263,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
           liveRef.current?.push(pcmOf(audio.pending));
           audio.pending = [];
         }
-      } else if (phaseRef.current === "listening" || phaseRef.current === "hearing") {
+      } else if (phaseRef.current !== "off" && phaseRef.current !== "transcribing") {
         audio.preRoll.push(frame);
         let kept = audio.preRoll.reduce((total, item) => total + item.length, 0);
         while (audio.preRoll.length > 1 && kept - audio.preRoll[0]!.length >= (rate * PRE_ROLL_MS) / 1000) {
@@ -336,7 +346,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
     abandonLiveTurn();
     stopRecorder(false);
     stopRecognition();
-    Object.assign(vad.current, { speechMs: 0, silenceMs: 0, bargeMs: 0, lastActivity: performance.now() });
+    Object.assign(vad.current, { speechMs: 0, silenceMs: 0, lastActivity: performance.now() });
     setPhase("listening");
     if (serverTranscription) startRecorder();
     else startRecognition();
@@ -344,6 +354,18 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
   useEffect(() => {
     listenRef.current = listen;
   }, [listen]);
+
+  /** The member talked over the coach: stop it, and take what they are saying as their turn (from its start). */
+  const interrupt = useCallback(() => {
+    callbacks.current.onBargeIn();
+    const preRoll = liveAudio.current.preRoll;
+    listen();
+    liveAudio.current.preRoll = preRoll;
+    const now = performance.now();
+    Object.assign(vad.current, { heardAt: now, lastActivity: now, silenceMs: 0 });
+    setPhase("hearing");
+    if (serverTranscription) beginLiveTurn();
+  }, [beginLiveTurn, listen, serverTranscription, setPhase]);
 
   // --- Session --------------------------------------------------------------
 
@@ -420,12 +442,15 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
         stopRecorder(true, finishLiveTurn());
     } else if (current === "waiting") {
       state.lastActivity = now;
-      const loud = coachSpeakingRef.current && rms > Math.max(threshold * 2.5, 0.06);
-      state.bargeMs = loud ? state.bargeMs + TICK_MS : 0;
-      if (state.bargeMs >= BARGE_IN_MS) {
-        state.bargeMs = 0;
-        callbacks.current.onBargeIn();
-        listen();
+      if (coachSpeakingRef.current) {
+        // The coach is talking: listen past its echo for the member's voice.
+        state.speechMs = 0;
+        if (talkOver.current.push(rms, TICK_MS, threshold * 1.5)) interrupt();
+      } else {
+        // Still thinking: no echo to allow for, so plain speech starts the member's next turn.
+        talkOver.current.reset();
+        state.speechMs = rms > threshold ? state.speechMs + TICK_MS : Math.max(0, state.speechMs - TICK_MS / 2);
+        if (state.speechMs >= TALK_WHILE_THINKING_MS) interrupt();
       }
     }
 
@@ -433,7 +458,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
       stop();
       callbacks.current.onTimeout();
     }
-  }, [beginLiveTurn, finishLiveTurn, listen, serverTranscription, setPhase, startRecorder, stop, stopRecorder]);
+  }, [beginLiveTurn, finishLiveTurn, interrupt, serverTranscription, setPhase, startRecorder, stop, stopRecorder]);
 
   const tickRef = useRef(tick);
   useEffect(() => {
@@ -479,6 +504,7 @@ export function useHandsFree({ serverTranscription, onUtterance, onBargeIn, onEr
 
   /** Lets talking over the coach interrupt it (only while it is actually speaking). */
   const setCoachSpeaking = useCallback((speaking: boolean) => {
+    if (speaking !== coachSpeakingRef.current) talkOver.current.reset();
     coachSpeakingRef.current = speaking;
   }, []);
 

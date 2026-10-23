@@ -7,7 +7,7 @@ import { can, type Viewer } from "@/server/auth/session";
 import { AI_ALERT_CATEGORIES, type AiCards } from "@/server/db/schema";
 import { trackUsage } from "@/server/services/usage";
 import { raiseAlert } from "./escalation";
-import { searchKnowledge } from "./knowledge";
+import { searchKnowledge, type KnowledgeHit } from "./knowledge";
 import { clip } from "./lib";
 import type { AiStreamEvent } from "./types";
 
@@ -31,6 +31,8 @@ export type ToolContext = {
   emit: (event: AiStreamEvent) => void;
   /** Shows the crisis card (once per level) and records it for the fallback reply. */
   showSafety: (level: "elevated" | "urgent", category: string) => void;
+  /** Settles once the conversation and the member's message are saved (the reply starts before that; tools wait). */
+  saved?: Promise<unknown>;
 };
 
 const SearchKnowledgeInput = z.object({ query: z.string().trim().min(1).max(200) });
@@ -165,15 +167,19 @@ function invalid(error: z.ZodError): ToolOutcome {
 async function searchKnowledgeTool(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
   const parsed = SearchKnowledgeInput.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const hits = await searchKnowledge(ctx.viewer, parsed.data.query);
+  return knowledgeResult(await searchKnowledge(ctx.viewer, parsed.data.query), ctx.cards);
+}
+
+/** search_knowledge's result for `hits`; adds them to the reply's source cards. Also used for the engine's up-front search. */
+export function knowledgeResult(hits: KnowledgeHit[], cards: AiCards): ToolOutcome {
   if (!hits.length)
     return { content: "No approved content matched. Don't answer from general knowledge; offer a next step instead." };
-  const sources = ctx.cards.sources ?? [];
+  const sources = cards.sources ?? [];
   for (const hit of hits) {
     if (!sources.some((source) => source.kind === hit.kind && source.id === hit.id))
       sources.push({ kind: hit.kind, id: hit.id, title: hit.title, href: hit.href });
   }
-  ctx.cards.sources = sources.slice(0, 8);
+  cards.sources = sources.slice(0, 8);
   return {
     content: hits
       .map(

@@ -120,6 +120,45 @@ describe("streamReply", () => {
     await streamReply(history, user, context(), () => undefined, { input: 0, output: 0 });
     expect(requests[0].model).toBe("claude-opus-5-5");
     expect(requests[0].output_config).toEqual({ effort: "medium" });
+    expect(requests[0].thinking).toBeUndefined();
+  });
+
+  it("spoken turns: no extended thinking, continuing from the search already run, which is stored", async () => {
+    script.push({
+      text: "PEP is emergency medicine.",
+      content: [text("PEP is emergency medicine.")],
+      stop_reason: "end_turn",
+    });
+    const searched: Anthropic.Beta.BetaMessageParam[] = [
+      { role: "assistant", content: [toolUse("pre", "search_knowledge")] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "pre", content: "PEP within 72 hours." }] },
+    ];
+    const result = await streamReply(history, user, context(), () => undefined, { input: 0, output: 0 }, undefined, {
+      model: "claude-sonnet-5-5",
+      effort: "low",
+      noThinking: true,
+      searched,
+    });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].thinking).toEqual({ type: "between_tools" });
+    expect(requests[0].messages).toEqual([...history, user, ...searched]);
+    expect(result.messages.map((message) => message.role)).toEqual(["assistant", "user", "assistant"]);
+  });
+
+  it("waits for the member's message to be saved before running tools", async () => {
+    script.push(
+      { content: [toolUse("t1", "search_knowledge")], stop_reason: "tool_use" },
+      { text: "Done.", content: [text("Done.")], stop_reason: "end_turn" },
+    );
+    let release!: () => void;
+    const saved = new Promise<void>((resolve) => (release = resolve));
+    const ctx = { ...context(), saved } as Parameters<typeof streamReply>[2];
+    const reply = streamReply(history, user, ctx, () => undefined, { input: 0, output: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(runTool).not.toHaveBeenCalled();
+    release();
+    await reply;
+    expect(runTool).toHaveBeenCalledTimes(1);
   });
 
   it("separates text from different rounds with a blank line", async () => {

@@ -5,6 +5,7 @@ import { getSettings } from "@/features/admin/settings";
 import { getMyCoach } from "@/features/peer-nav/queries";
 import { can, type Viewer } from "@/server/auth/session";
 import { db } from "@/server/db/client";
+import { newId } from "@/server/db/ids";
 import {
   aiConversations,
   aiMessages,
@@ -19,22 +20,26 @@ import { classifyRisk } from "./classifier";
 import { AI_MODEL, aiConfigured, claude, FALLBACK_BETA, VOICE_MODEL } from "./claude";
 import { HOURLY_MESSAGE_LIMIT, MAX_TURNS_PER_CONVERSATION } from "./constants";
 import { raiseAlert } from "./escalation";
-import { searchKnowledge } from "./knowledge";
+import { searchKnowledge, type KnowledgeHit } from "./knowledge";
 import { getPreferences } from "./queries";
 import { resolveCoach } from "./coach-design";
 import { buildMemberContext, buildPersona, conversationTitle, SYSTEM_PROMPT } from "./prompt";
 import { detectKeywordRisk, maxRisk, riskRank } from "./safety";
-import { runTool, TOOLS, type ToolContext } from "./tools";
+import { clip } from "./lib";
+import { knowledgeResult, runTool, TOOLS, type ToolContext } from "./tools";
 import type { AiPreferencesDTO, AiStreamEvent, ChatMessageDTO } from "./types";
 
 /**
  * One AI Coach turn: the member's message in, a streamed reply out.
  *
- *  1. Save the member's message; run the keyword safety check (instant) and
- *     the Claude safety classifier (in parallel with the reply).
+ *  1. Save the member's message (while the reply starts); run the keyword
+ *     safety check (instant) and the Claude safety classifier (in parallel
+ *     with the reply).
  *  2. Replay the stored conversation (append-only, thinking blocks and tool
  *     calls included) and stream Claude's reply, running its tools
  *     (knowledge search, resource locator, navigator hand-off, human alert).
+ *     Spoken turns search approved content up front, so the coach can start
+ *     talking after one model call instead of two.
  *  3. Save the reply with its cards and outcome.
  *
  * Every failure ends in a defined fallback reply (docs/AI_COACH.md "Fallbacks").
@@ -78,6 +83,11 @@ const LONG_CONVERSATION_TEXT =
 export async function runChatTurn(input: ChatInput): Promise<void> {
   const { viewer, emit } = input;
   const started = Date.now();
+  // Spoken replies are short and a member is listening: everything below is tuned so the coach starts talking sooner.
+  const spoken = Boolean(input.viaVoice || input.handsFree);
+  // A spoken turn's knowledge search runs now, alongside the reads (same query limit as the tool).
+  const searchQuery = clip(input.text, 200);
+  const prefetched = spoken && aiConfigured() ? searchKnowledge(viewer, searchQuery).catch(() => null) : null;
   // Every read up front, in one round: the member is waiting (in voice chat, listening).
   const existingId = input.conversationId;
   const [settings, existing, history, preferences, [profile], navigator, [{ recent }]] = await Promise.all([
@@ -126,7 +136,6 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
   ]);
   if (!settings.aiCoachEnabled) throw new ChatError("The AI Coach is switched off right now.");
 
-  let conversationId = existingId;
   let title = conversationTitle(input.text);
   let turnCount = 0;
   if (existing) {
@@ -136,14 +145,10 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     turnCount = turns;
   }
 
-  const isNew = !conversationId;
-  if (!conversationId) {
-    const [created] = await db
-      .insert(aiConversations)
-      .values({ userId: viewer.id, title })
-      .returning({ id: aiConversations.id });
-    conversationId = created.id;
-  }
+  const isNew = !existingId;
+  // Ids are made here so the writes don't hold up the reply; whatever references the rows waits for `stored`.
+  const conversationId = existingId ?? newId();
+  const userMessageId = newId();
   const keyword = detectKeywordRisk(input.text);
   const memberContext = isNew
     ? buildMemberContext({
@@ -174,9 +179,10 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
       }
     : { role: "user", content: input.text };
 
-  const [userMessage] = await db
-    .insert(aiMessages)
-    .values({
+  const stored = (async () => {
+    if (isNew) await db.insert(aiConversations).values({ id: conversationId, userId: viewer.id, title });
+    await db.insert(aiMessages).values({
+      id: userMessageId,
       conversationId,
       userId: viewer.id,
       role: "user",
@@ -185,9 +191,10 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
       risk: keyword?.level ?? "none",
       riskCategory: keyword?.category ?? null,
       viaVoice: input.viaVoice,
-    })
-    .returning({ id: aiMessages.id });
-  emit({ type: "start", conversationId, userMessageId: userMessage.id, title });
+    });
+  })();
+  stored.catch(() => undefined); // awaited before the reply is saved; this only keeps an early failure from going unhandled
+  emit({ type: "start", conversationId, userMessageId, title });
   // Usage events never throw and the reply doesn't need them: don't wait.
   void trackUsage(viewer.id, "ai_message", {
     voice: input.viaVoice,
@@ -210,19 +217,22 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
   let keywordAlert: Promise<unknown> = Promise.resolve();
   if (keyword) {
     showSafety(keyword.level, keyword.category);
-    keywordAlert = raiseAlert({
-      userId: viewer.id,
-      conversationId,
-      messageId: userMessage.id,
-      level: keyword.level,
-      category: keyword.category,
-      source: "keywords",
-      reason: "Possible crisis wording in a member message.",
-    });
+    keywordAlert = stored.then(() =>
+      raiseAlert({
+        userId: viewer.id,
+        conversationId,
+        messageId: userMessageId,
+        level: keyword.level,
+        category: keyword.category,
+        source: "keywords",
+        reason: "Possible crisis wording in a member message.",
+      }),
+    );
   }
 
   // Safety layer 2: Claude classifier, in parallel with the reply.
   const classification = (async () => {
+    await stored;
     const recent = await db
       .select({ text: aiMessages.text })
       .from(aiMessages)
@@ -236,13 +246,13 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     await db
       .update(aiMessages)
       .set({ risk: level, riskCategory: keyword?.category ?? category })
-      .where(eq(aiMessages.id, userMessage.id));
+      .where(eq(aiMessages.id, userMessageId));
     if (risk.level === "support") return; // the coach offers people itself; no alert for a plain wish to talk
     showSafety(risk.level, category);
     await raiseAlert({
       userId: viewer.id,
       conversationId,
-      messageId: userMessage.id,
+      messageId: userMessageId,
       level: risk.level,
       category,
       source: "classifier",
@@ -273,7 +283,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     const toolContext: ToolContext = {
       viewer,
       conversationId,
-      userMessageId: userMessage.id,
+      userMessageId,
       near: input.near,
       personalize: preferences.personalize,
       profileLocation: profile?.location || null,
@@ -282,6 +292,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
       cards,
       emit,
       showSafety,
+      saved: stored,
     };
     try {
       const coach = resolveCoach(preferences.design);
@@ -291,12 +302,16 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         tone: coach.tone,
         replyLength: coach.replyLength,
       });
-      // Spoken replies are short and a member is listening: a faster model, thinking less, so it starts talking sooner.
-      const spoken = Boolean(input.viaVoice || input.handsFree);
+      // Spoken: a faster model with no extended thinking, and the knowledge search already done.
       replyModel = spoken ? VOICE_MODEL : AI_MODEL;
+      const hits = prefetched ? await prefetched : null;
+      const searched = hits?.length ? searchedRound(searchQuery, hits, toolContext) : [];
+      if (searched.length) emit({ type: "cards", cards: { ...cards } });
       const result = await streamReply(history, userParam, toolContext, emitText, usage, persona, {
         model: replyModel,
         effort: spoken ? "low" : "medium",
+        noThinking: spoken,
+        searched,
       });
       turnMessages = result.messages;
       if (result.refused) outcome = "fallback_refusal";
@@ -310,8 +325,8 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     }
   }
 
-  // The safety review must be on the record (and its card shown) before the reply is final.
-  await Promise.all([keywordAlert, classification]);
+  // The member's message and the safety review must be on the record (and its card shown) before the reply is final.
+  await Promise.all([stored, keywordAlert, classification]);
 
   // Fallbacks: a defined reply (after any partial answer), related approved content, and a clean history entry.
   if (outcome !== "answered") {
@@ -376,6 +391,20 @@ async function loadHistory(conversationId: string) {
   return rows.flatMap((row) => row.apiMessages as Anthropic.Beta.BetaMessageParam[]);
 }
 
+/**
+ * A search_knowledge call and its result for the member's own words, run by
+ * the app before the reply (spoken turns). Stored like any tool round, so
+ * the replayed history shows what the coach was given.
+ */
+function searchedRound(query: string, hits: KnowledgeHit[], ctx: ToolContext): Anthropic.Beta.BetaMessageParam[] {
+  const id = `toolu_${newId().replace(/-/g, "")}`;
+  const result = knowledgeResult(hits, ctx.cards);
+  return [
+    { role: "assistant", content: [{ type: "tool_use", id, name: "search_knowledge", input: { query } }] },
+    { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: result.content }] },
+  ];
+}
+
 type ReplyResult = { messages: Anthropic.Beta.BetaMessageParam[]; refused: boolean };
 
 /** Streams Claude's reply, running tools until it is done. Returns this turn's messages (append-only). Exported for tests. */
@@ -387,9 +416,21 @@ export async function streamReply(
   usage: { input: number; output: number },
   /** The member's chosen coach and style (buildPersona), after the cached system prompt. */
   persona?: string,
-  { model = AI_MODEL, effort = "medium" }: { model?: string; effort?: "low" | "medium" } = {},
+  {
+    model = AI_MODEL,
+    effort = "medium",
+    noThinking = false,
+    searched = [],
+  }: {
+    model?: string;
+    effort?: "low" | "medium";
+    /** No extended thinking, so the first words come sooner (`between_tools`: VOICE_MODEL only). */
+    noThinking?: boolean;
+    /** A knowledge search already run for this turn (searchedRound), continued from. */
+    searched?: Anthropic.Beta.BetaMessageParam[];
+  } = {},
 ): Promise<ReplyResult> {
-  const turn: Anthropic.Beta.BetaMessageParam[] = [userParam];
+  const turn: Anthropic.Beta.BetaMessageParam[] = [userParam, ...searched];
   let wroteText = false;
   let jsonRetries = 0;
 
@@ -401,6 +442,7 @@ export async function streamReply(
       betas: [FALLBACK_BETA],
       fallbacks: "default",
       output_config: { effort },
+      ...(noThinking ? { thinking: { type: "between_tools" as const } } : {}),
       // The system prompt and tool list are identical for every member: cached.
       system: [
         { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
@@ -454,6 +496,8 @@ export async function streamReply(
       throw new Error("reply cut off during a tool call");
     }
     if (message.stop_reason !== "tool_use" || !toolUses.length) break;
+    // Tools can reference the member's message, which may still be saving.
+    await ctx.saved;
 
     const results = await Promise.all(
       toolUses.map(async (toolUse): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {

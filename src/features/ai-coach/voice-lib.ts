@@ -11,14 +11,22 @@
 /**
  * Collects streamed text and hands back whole sentences to speak, so the coach
  * starts talking after the first sentence instead of after the whole reply.
- * The first chunk is short (fast start); later ones group sentences so a reply
- * isn't split into many small voice requests.
+ * The first chunk is short (fast start: a long first sentence is cut at a
+ * comma); later ones group sentences so a reply isn't split into many small
+ * voice requests.
  */
 export class SpeechChunker {
   private buffer = "";
   private emitted = 0;
 
-  constructor(private readonly options = { firstMin: 20, min: 90, max: 320 }) {}
+  constructor(
+    private readonly options: { firstMin: number; min: number; max: number; firstMax?: number } = {
+      firstMin: 20,
+      min: 90,
+      max: 320,
+      firstMax: 90,
+    },
+  ) {}
 
   push(delta: string): string[] {
     this.buffer += delta;
@@ -41,7 +49,9 @@ export class SpeechChunker {
   }
 
   private take(): string | null {
-    const min = this.emitted === 0 ? this.options.firstMin : this.options.min;
+    const first = this.emitted === 0;
+    const min = first ? this.options.firstMin : this.options.min;
+    const max = first ? (this.options.firstMax ?? this.options.max) : this.options.max;
     // Sentence ends: . ! ? … followed by space (not "2.5" or a list number like "1. "), or a line break.
     const boundary = /(?<!\b\d)[.!?…]+["')\]]*(?=\s)|\n+/g;
     let cut = -1;
@@ -52,18 +62,62 @@ export class SpeechChunker {
         break;
       }
     }
-    if (cut < 0 && this.buffer.length > this.options.max) {
+    if (cut < 0 && this.buffer.length > max) {
       // A very long sentence: break at a comma, else a space.
-      const window = this.buffer.slice(0, this.options.max);
+      const window = this.buffer.slice(0, max);
       const comma = window.lastIndexOf(", ");
       const space = window.lastIndexOf(" ");
-      cut = comma > min ? comma + 1 : space > min ? space : this.options.max;
+      cut = comma > min ? comma + 1 : space > min ? space : max;
     }
     if (cut < 0) return null;
     const chunk = this.buffer.slice(0, cut).trim();
     this.buffer = this.buffer.slice(cut);
     if (chunk) this.emitted++;
     return chunk;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Talking over the coach
+// ---------------------------------------------------------------------------
+
+/**
+ * Decides, from the mic's loudness, when the member talks over the coach.
+ * The coach's own voice reaches the mic from the speakers, so the detector
+ * learns how loud that echo gets (its first moments, and every quiet reading
+ * after) and listens for clearly more. Short dips between syllables don't
+ * reset it.
+ */
+export class TalkOverDetector {
+  private echo = 0;
+  private score = 0;
+  private elapsed = 0;
+
+  constructor(private readonly options = { warmupMs: 300, triggerMs: 250, margin: 1.5 }) {}
+
+  reset() {
+    this.echo = 0;
+    this.score = 0;
+    this.elapsed = 0;
+  }
+
+  /**
+   * One reading: `rms` (0–1) taken `ms` after the last one, and `floor`, the
+   * quietest sound that counts as speech in this room. True once the member is talking.
+   */
+  push(rms: number, ms: number, floor: number): boolean {
+    this.elapsed += ms;
+    if (this.elapsed <= this.options.warmupMs) {
+      // The coach's first moments: its loudest echo.
+      this.echo = Math.max(this.echo, rms);
+      return false;
+    }
+    const threshold = Math.max(floor, this.echo * this.options.margin);
+    const loud = rms > threshold;
+    // Then follows the echo's peaks (quick to rise, slow to fall), from readings that aren't the member.
+    if (!loud) this.echo = rms > this.echo ? this.echo * 0.7 + rms * 0.3 : this.echo * 0.995 + rms * 0.005;
+    this.score = loud ? this.score + ms : Math.max(0, this.score - ms / 2);
+    return this.score >= this.options.triggerMs;
   }
 }
 
@@ -160,7 +214,8 @@ export type VoiceGender = "female" | "male";
 /** Browsers don't say a voice's gender: well-known voice names do (Apple, Google, Microsoft, Amazon). */
 const FEMALE_VOICES =
   /\bfemale\b|samantha|victoria|karen|moira|tessa|fiona|allison|ava\b|susan|zira|aria|jenny|hazel|libby|sonia|natasha|michelle|emma|joanna|salli|kimberly|kendra|ivy|serena|nicky|google us english/i;
-const MALE_VOICES = /\bmale\b|daniel|alex\b|fred|tom\b|david|mark\b|guy\b|ryan|george|james|aaron|arthur|rishi|matthew|joey|justin/i;
+const MALE_VOICES =
+  /\bmale\b|daniel|alex\b|fred|tom\b|david|mark\b|guy\b|ryan|george|james|aaron|arthur|rishi|matthew|joey|justin/i;
 /** Voices that sound less robotic. */
 const NATURAL_VOICES = /natural|neural|enhanced|premium|online|google/i;
 

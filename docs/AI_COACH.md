@@ -34,7 +34,7 @@ Code: `src/features/ai-coach/`. Database: `src/server/db/schema/ai.ts`, migratio
    - Runs in parallel with the reply, rating the latest message (with up to 3 earlier ones) as none, support, elevated or urgent.
    - Catches indirect wording the keywords miss.
    - The reply isn't finalised until the classifier has finished.
-4. **The reply.** Claude Opus 5.5 (`claude-opus-5-5`) at effort `medium` for typed messages. Spoken turns (hands-free voice chat and mic messages) use Claude Sonnet 5.5 (`claude-sonnet-5-5`, `VOICE_MODEL` in `claude.ts`) at effort `low`, so speech starts sooner; same refusal fallback, and the safety classifier stays on Opus. The reply is saved with the model that wrote it. Both get:
+4. **The reply.** Claude Sonnet 5.5 (`claude-sonnet-5-5`, `VOICE_MODEL` in `claude.ts`) at effort `low` for typed and spoken messages, so replies start sooner. The separate safety classifier stays on Opus. The reply is saved with the model that wrote it. Both get:
    - the static system prompt (`prompt.ts`, cached);
    - the full stored conversation (tool calls and thinking blocks included, never edited);
    - four tools (`tools.ts`):
@@ -42,6 +42,8 @@ Code: `src/features/ai-coach/`. Database: `src/server/db/schema/ai.ts`, migratio
      - `find_resources`: the existing resource locator, with the member's device location if they shared it, else a city or ZIP they named, else their profile location.
      - `connect_peer_navigator`: a card with a draft message the member edits and sends to their navigator. Members without a navigator get study-team contacts instead.
      - `request_human_support`: Safety layer 3. The coach raises an alert itself (support, elevated or urgent).
+
+   Spoken turns are tuned for a fast first word: the knowledge search for the member's own words runs alongside the first database reads and goes to Claude as an already-finished `search_knowledge` round (stored like any tool round), so most answers need one model call instead of two; thinking is `between_tools` (no extended thinking); and the conversation and member message are written while the reply starts (tools, alerts and the final save wait for those writes). The first spoken chunk is cut at a comma when the first sentence is long. Each turn logs `ai chat timing` (ms from the request to the first `start`, `text`, `speech` and `done` events).
 5. **Save the reply** with its cards (resources, sources, hand-off, crisis), outcome, latency and token counts.
 
 **Refusals:** requests use Anthropic's server-side refusal fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`). If the safety classifiers decline, the API re-runs the request on Anthropic's recommended fallback model. If the whole chain refuses, the member gets the refusal fallback (below).
@@ -124,7 +126,8 @@ Each case below has a defined reply. The member always sees how to reach people,
   - With ElevenLabs, each turn is **transcribed live** while the member talks (`live-transcription.ts`, real-time `scribe_v2_realtime`), so the words are ready when they stop. The browser gets a single-use token from `POST /api/ai/transcription-token` (the API key stays on the server). Audio is only sent from just before speech is detected (a 0.5 s pre-roll) to the end of the turn; our pause detection ends the turn (manual commits).
   - **Fallback:** each turn is also recorded. If live transcription is unavailable, breaks, or is slow (over 4 s), the recording is uploaded and transcribed as before (`scribe_v1`, sound tags off). Without ElevenLabs, the browser's speech recognition is used. Push-to-talk mic messages always upload.
   - The words are sent, the coach speaks, then it listens again.
-  - **Interrupting:** talking over the coach for about a third of a second stops it, and so does "Stop talking". A message said while a reply is still arriving is sent once that turn is saved.
+  - **Interrupting:** talking over the coach stops it (about a quarter of a second of speech; `TalkOverDetector` in `voice-lib.ts` learns how loud the coach's own echo is and ignores short dips between syllables), and so does "Stop talking". Talking while the coach is still thinking also counts: that reply isn't spoken. What the member says while interrupting is kept as the start of their turn. A message said while a reply is still arriving is sent once that turn is saved.
+  - **Outside voice chat** (replies to mic messages, "Read replies aloud", replaying a reply), talking stops the coach too (`use-talk-over.ts`): while it speaks, the mic is open and checked on the device only (nothing recorded or sent), and only if the member has already allowed the microphone, so a reply never brings up a permission prompt. Tapping the mic button also stops the coach.
   - **Captions** of the current sentence show above the conversation. The full reply is in the conversation as usual.
   - **Controls:** Mute and End voice chat. The mic switches itself off after 90 s without speech.
   - Usage: `ai_message` events carry `handsFree`.

@@ -48,6 +48,7 @@ import { HelpSheet, HistorySheet, SettingsSheet } from "./coach-sheets";
 import { CoachMarkdown, CrisisCard, ReplyCards } from "./reply-cards";
 import { useCoachVoice } from "./use-coach-voice";
 import { useHandsFree } from "./use-hands-free";
+import { useTalkOver } from "./use-talk-over";
 import { useVideoCoach } from "./use-video-coach";
 import { useVoiceInput } from "./use-voice-input";
 
@@ -310,6 +311,11 @@ export function AiCoach(props: Props) {
     resumeListeningRef.current = resumeHandsFree;
   }, [resumeHandsFree]);
   useEffect(() => setCoachSpeaking(Boolean(voice.speakingId)), [setCoachSpeaking, voice.speakingId]);
+  // Outside voice chat, talking over the coach stops it too (voice chat handles that itself).
+  useTalkOver({
+    active: props.voiceEnabled && !handsFree.active && mic.state === "idle" && Boolean(voice.speakingId),
+    onTalk: voice.stop,
+  });
 
   async function startHandsFree() {
     voice.unlock();
@@ -453,7 +459,9 @@ export function AiCoach(props: Props) {
   return (
     <div
       className={
-        panel ? "flex h-full min-h-0 flex-col" : "mx-auto grid max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]"
+        panel
+          ? "flex h-full min-h-0 flex-col"
+          : "mx-auto grid max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]"
       }
     >
       {/* Coach stage (desktop page) */}
@@ -769,7 +777,11 @@ export function AiCoach(props: Props) {
                 size="icon-lg"
                 className={cn("size-11 shrink-0 rounded-full", mic.state === "recording" && "animate-pulse")}
                 aria-label={mic.state === "recording" ? "Stop recording" : "Talk to your coach"}
-                onClick={() => (mic.state === "recording" ? mic.stop() : void mic.start())}
+                onClick={() => {
+                  if (mic.state === "recording") return mic.stop();
+                  voice.stop(); // the member is about to talk: the coach stops
+                  void mic.start();
+                }}
                 disabled={sending || mic.state === "transcribing"}
               >
                 {mic.state === "transcribing" ? (

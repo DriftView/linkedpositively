@@ -4,6 +4,7 @@ import {
   charViseme,
   pickBrowserVoice,
   SpeechChunker,
+  TalkOverDetector,
   textToVisemes,
   visemeAt,
   voiceGenderFor,
@@ -18,6 +19,14 @@ function feed(chunker: SpeechChunker, text: string, step = 3) {
 }
 
 describe("SpeechChunker", () => {
+  it("cuts a long first sentence at a comma so the coach starts talking sooner", () => {
+    const text =
+      "When you start PrEP, your provider will usually ask for an HIV test first, and then you check in every few months.";
+    const chunks = feed(new SpeechChunker(), text);
+    expect(chunks[0]).toBe("When you start PrEP, your provider will usually ask for an HIV test first,");
+    expect(chunks.join(" ")).toBe(text);
+  });
+
   it("speaks the first sentence early, then groups the rest", () => {
     const text =
       "PrEP is a medicine that lowers the chance of getting HIV. It works best when taken as prescribed. Your provider can help you decide. Many clinics offer it at low cost. You can also ask your navigator.";
@@ -105,5 +114,41 @@ describe("pickBrowserVoice", () => {
     expect(voiceGenderFor("she")).toBe("female");
     expect(voiceGenderFor("he")).toBe("male");
     expect(voiceGenderFor("they")).toBeNull();
+  });
+});
+
+describe("TalkOverDetector", () => {
+  /** The coach's voice as the mic hears it: syllables rising and falling. */
+  const echo = (tick: number) => 0.02 + 0.06 * Math.abs(Math.sin(tick / 3));
+  /** Feeds readings until the detector fires; the tick it fired on, or -1. */
+  function run(detector: TalkOverDetector, readings: (tick: number) => number, ticks: number) {
+    for (let tick = 0; tick < ticks; tick++) if (detector.push(readings(tick), 50, 0.03)) return tick;
+    return -1;
+  }
+
+  it("ignores the coach's own voice", () => {
+    expect(run(new TalkOverDetector(), echo, 400)).toBe(-1);
+  });
+
+  it("stops the coach soon after the member starts talking, through the dips between syllables", () => {
+    // Echo for 2 s, then the member: loud, with a quiet tick every fourth one.
+    const fired = run(
+      new TalkOverDetector(),
+      (tick) => (tick < 40 ? echo(tick) : tick % 4 === 0 ? echo(tick) : 0.25 + echo(tick)),
+      200,
+    );
+    expect(fired).toBeGreaterThan(40);
+    expect((fired - 40) * 50).toBeLessThanOrEqual(500);
+  });
+
+  it("ignores a cough", () => {
+    expect(run(new TalkOverDetector(), (tick) => (tick === 30 || tick === 31 ? 0.4 : echo(tick)), 200)).toBe(-1);
+  });
+
+  it("starts over after reset", () => {
+    const detector = new TalkOverDetector();
+    run(detector, () => 0.3, 10);
+    detector.reset();
+    expect(detector.push(0.3, 50, 0.03)).toBe(false);
   });
 });

@@ -20,6 +20,7 @@ export const maxDuration = 120;
  * speech, sentence by sentence (speech-stream.ts), before `done`.
  */
 export async function POST(request: Request) {
+  const received = Date.now();
   let viewer;
   try {
     viewer = await assertPermission("ai.chat");
@@ -42,7 +43,11 @@ export async function POST(request: Request) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let open = true;
+      // Milliseconds from the request to each first event, logged per turn to find where voice lag comes from.
+      const timing: Partial<Record<"start" | "text" | "speech" | "done", number>> = {};
       const send = (event: AiStreamEvent) => {
+        if (event.type in { start: 1, text: 1, speech: 1, done: 1 })
+          timing[event.type as keyof typeof timing] ??= Date.now() - received;
         if (!open) return;
         try {
           controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
@@ -88,6 +93,16 @@ export async function POST(request: Request) {
       } finally {
         if (open) controller.close();
         open = false;
+        logger.info(
+          {
+            userId: viewer.id,
+            viaVoice: Boolean(body.viaVoice),
+            handsFree: Boolean(body.handsFree),
+            speak,
+            ms: timing,
+          },
+          "ai chat timing",
+        );
       }
     },
   });
