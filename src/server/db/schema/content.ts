@@ -1,5 +1,6 @@
+import { sql } from "drizzle-orm";
 import { boolean, index, integer, pgTable, text, uuid } from "drizzle-orm/pg-core";
-import { enumCheck, id, legacyColumns, legacyConstraints, rangeCheck, timestamps, tstz } from "./_shared";
+import { enumCheck, id, legacyColumns, legacyConstraints, rangeCheck, timestamps, tstz, tsvector } from "./_shared";
 import { users } from "./auth";
 
 export const PAGE_STATUSES = ["published", "draft"] as const;
@@ -34,6 +35,10 @@ export const pages = pgTable(
     needsReview: boolean().notNull().default(false),
     /** Legacy aliases (e.g. "about/support") for redirects. GIN-indexed: `arrayContains(pages.aliases, [alias])`. */
     aliases: text().array().notNull().default([]),
+    /** Full-text search for the AI Coach (title A, summary B, body without tags D). Generated: never write it. */
+    searchVector: tsvector().generatedAlwaysAs(
+      sql`(setweight(to_tsvector('english', coalesce("title", '')), 'A') || setweight(to_tsvector('english', coalesce("summary", '')), 'B') || setweight(to_tsvector('english', regexp_replace("body_html", '<[^>]+>', ' ', 'g')), 'D'))`,
+    ),
     updatedBy: uuid().references(() => users.id, { onDelete: "set null" }),
     ...legacyColumns(),
     ...timestamps(),
@@ -42,6 +47,7 @@ export const pages = pgTable(
     ...legacyConstraints("pages", t),
     index("pages_status_menu_order_idx").on(t.status, t.inMenu, t.order),
     index("pages_aliases_gin").using("gin", t.aliases),
+    index("pages_search_vector_gin").using("gin", t.searchVector),
     enumCheck("pages_status_ck", t.status, PAGE_STATUSES),
     enumCheck("pages_audience_ck", t.audience, PAGE_AUDIENCES),
   ],
@@ -63,11 +69,19 @@ export const glossaryTerms = pgTable(
     definitionHtml: text().notNull().default(""),
     /** Plain-text copy of the definition, for search. */
     definitionText: text().notNull().default(""),
+    /** Full-text search for the AI Coach (name A, definition D). Generated: never write it. */
+    searchVector: tsvector().generatedAlwaysAs(
+      sql`(setweight(to_tsvector('english', "name"), 'A') || setweight(to_tsvector('english', "definition_text"), 'D'))`,
+    ),
     updatedBy: uuid().references(() => users.id, { onDelete: "set null" }),
     ...legacyColumns(),
     ...timestamps(),
   },
-  (t) => [...legacyConstraints("glossary_terms", t), index("glossary_terms_letter_name_idx").on(t.letter, t.name)],
+  (t) => [
+    ...legacyConstraints("glossary_terms", t),
+    index("glossary_terms_letter_name_idx").on(t.letter, t.name),
+    index("glossary_terms_search_vector_gin").using("gin", t.searchVector),
+  ],
 );
 
 export const JOURNEY_ACCENTS = ["plum", "magenta", "sky", "apricot", "pink"] as const;

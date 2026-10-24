@@ -262,6 +262,13 @@ export function coachVoice(id: string | null | undefined) {
 /** Said in the coach picker's "Hear" preview (fixed, so previews can be cached). */
 export const VOICE_PREVIEW_TEXT = "Hi, I'm your Link Positively coach. I'm here whenever you want to talk.";
 
+/**
+ * Said the moment a voice-chat turn ends, while the reply is on its way, so
+ * the wait doesn't feel like silence. Neutral on purpose: they follow anything
+ * a member says, including hard things.
+ */
+export const BACKCHANNELS = ["Mm-hm.", "Mm."] as const;
+
 export const PRONOUN_OPTIONS: Option<AiCoachPronouns>[] = [
   { id: "she", label: "she/her" },
   { id: "he", label: "he/him" },

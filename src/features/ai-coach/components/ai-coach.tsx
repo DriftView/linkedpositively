@@ -35,10 +35,10 @@ import { AutoTextarea } from "@/features/peer-nav/components/auto-textarea";
 import { cn } from "@/lib/utils";
 import { feedbackAction } from "../actions";
 import type { AiCoachId } from "@/server/db/schema/ai";
-import { coachVoice, resolveCoach } from "../coach-design";
+import { BACKCHANNELS, coachVoice, resolveCoach } from "../coach-design";
 import { MAX_MESSAGE_LENGTH, STARTER_PROMPTS } from "../constants";
 import { speakableText } from "../prompt";
-import type { AiCards, AiCoachData, AiStreamEvent, ChatMessageDTO } from "../types";
+import type { AiCards, AiCoachData, AiStreamEvent, ChatMessageDTO, SpeechChunkDTO } from "../types";
 import { SpeechChunker, voiceGenderFor } from "../voice-lib";
 import type { CoachState } from "./coach-avatar";
 import { CoachCall } from "./coach-call";
@@ -112,6 +112,8 @@ export function AiCoach(props: Props) {
   const sendingRef = useRef(false);
   const queuedRef = useRef<{ text: string; options: SendOptions } | null>(null);
   const resumeListeningRef = useRef<() => void>(() => undefined);
+  /** The backchannels in the coach's voice (loaded when voice chat starts), taken in turn. */
+  const backchannelsRef = useRef<{ voice: string; clips: SpeechChunkDTO[]; next: number } | null>(null);
   const coach = resolveCoach(preferences.design);
   const onVoiceIdle = useCallback(() => resumeListeningRef.current(), []);
   const video = useVideoCoach();
@@ -151,6 +153,12 @@ export function AiCoach(props: Props) {
       let spokenChunks = 0;
       if (speak) voice.begin(PENDING);
       else voice.stop();
+      // Voice chat: a short "Mm-hm." in the coach's voice at once, while the reply is on its way.
+      const backchannels = backchannelsRef.current;
+      if (speak && options.handsFree && props.serverVoice && backchannels?.voice === coach.voice) {
+        const clip = backchannels.clips[backchannels.next++ % backchannels.clips.length];
+        if (clip) voice.enqueue(clip, { filler: true });
+      }
       sendingRef.current = true;
       setSending(true);
       setStatus(null);
@@ -239,6 +247,11 @@ export function AiCoach(props: Props) {
                 spokenChunks++;
                 voice.enqueue(event);
                 break;
+              case "spoken":
+                // All the audio is here: hands-free can listen again once it has played, without waiting for `done`.
+                // (With no audio at all, `done` has the browser read the reply instead.)
+                if (spokenChunks > 0) voice.end();
+                break;
               case "status":
                 setStatus(event.label);
                 break;
@@ -283,7 +296,17 @@ export function AiCoach(props: Props) {
         if (queued) void sendRef.current(queued.text, queued.options);
       }
     },
-    [conversationId, near, panel, preferences.autoSpeak, props.basePath, props.serverVoice, props.voiceEnabled, voice],
+    [
+      coach.voice,
+      conversationId,
+      near,
+      panel,
+      preferences.autoSpeak,
+      props.basePath,
+      props.serverVoice,
+      props.voiceEnabled,
+      voice,
+    ],
   );
   const sendRef = useRef(send);
   useEffect(() => {
@@ -317,8 +340,28 @@ export function AiCoach(props: Props) {
     onTalk: voice.stop,
   });
 
+  /** Fetches the backchannels in the coach's current voice (once per voice; none if ElevenLabs is unavailable). */
+  function loadBackchannels() {
+    if (!props.serverVoice || backchannelsRef.current?.voice === coach.voice) return;
+    const bank = { voice: coach.voice as string, clips: [] as SpeechChunkDTO[], next: 0 };
+    backchannelsRef.current = bank;
+    BACKCHANNELS.forEach((_, index) => {
+      void fetch("/api/ai/speech", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ backchannel: index }),
+      })
+        .then((response) => (response.ok ? (response.json() as Promise<SpeechChunkDTO>) : null))
+        .then((clip) => {
+          if (clip?.audio) bank.clips.push(clip);
+        })
+        .catch(() => undefined);
+    });
+  }
+
   async function startHandsFree() {
     voice.unlock();
+    loadBackchannels();
     setConnecting(true);
     const shown = Date.now();
     const on = await handsFree.start();

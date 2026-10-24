@@ -8,6 +8,7 @@ import {
   AI_REPLY_LENGTHS,
   AI_TOPICS,
 } from "@/server/db/schema/ai";
+import { BACKCHANNELS } from "./coach-design";
 import { MAX_MESSAGE_LENGTH } from "./constants";
 
 /** Body of POST /api/ai/chat. */
@@ -57,6 +58,8 @@ export const clientEventSchema = z.object({ event: z.enum(AI_CLIENT_EVENTS) });
 export const speechRequestSchema = z.union([
   z.object({ messageId: uuidSchema }),
   z.object({ preview: z.enum(AI_COACH_VOICES) }),
+  /** BACKCHANNELS[backchannel] in the member's coach voice. */
+  z.object({ backchannel: z.number().int().min(0).max(BACKCHANNELS.length - 1) }),
 ]);
 
 export const alertUpdateSchema = z.object({

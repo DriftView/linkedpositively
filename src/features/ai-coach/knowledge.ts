@@ -30,8 +30,6 @@ export async function searchKnowledge(viewer: Viewer, query: string, limit = 6):
   const q = anyWordQuery(query);
   if (!q) return [];
   const tsq = sql`websearch_to_tsquery('english', ${q})`;
-  const pageVector = sql`(setweight(to_tsvector('english', coalesce(${pages.title}, '')), 'A') || setweight(to_tsvector('english', coalesce(${pages.summary}, '')), 'B') || setweight(to_tsvector('english', regexp_replace(${pages.bodyHtml}, '<[^>]+>', ' ', 'g')), 'D'))`;
-  const glossaryVector = sql`(setweight(to_tsvector('english', ${glossaryTerms.name}), 'A') || setweight(to_tsvector('english', ${glossaryTerms.definitionText}), 'D'))`;
 
   const [tipRows, pageRows, glossaryRows, articleRows] = await Promise.all([
     db
@@ -52,11 +50,11 @@ export async function searchKnowledge(viewer: Viewer, query: string, limit = 6):
         title: pages.title,
         summary: pages.summary,
         html: pages.bodyHtml,
-        rank: sql<number>`ts_rank(${pageVector}, ${tsq})`.mapWith(Number),
+        rank: sql<number>`ts_rank(${pages.searchVector}, ${tsq})`.mapWith(Number),
       })
       .from(pages)
-      .where(and(eq(pages.status, "published"), eq(pages.audience, "everyone"), sql`${pageVector} @@ ${tsq}`))
-      .orderBy(desc(sql`ts_rank(${pageVector}, ${tsq})`))
+      .where(and(eq(pages.status, "published"), eq(pages.audience, "everyone"), sql`${pages.searchVector} @@ ${tsq}`))
+      .orderBy(desc(sql`ts_rank(${pages.searchVector}, ${tsq})`))
       .limit(limit),
     db
       .select({
@@ -64,11 +62,11 @@ export async function searchKnowledge(viewer: Viewer, query: string, limit = 6):
         slug: glossaryTerms.slug,
         title: glossaryTerms.name,
         text: glossaryTerms.definitionText,
-        rank: sql<number>`ts_rank(${glossaryVector}, ${tsq})`.mapWith(Number),
+        rank: sql<number>`ts_rank(${glossaryTerms.searchVector}, ${tsq})`.mapWith(Number),
       })
       .from(glossaryTerms)
-      .where(sql`${glossaryVector} @@ ${tsq}`)
-      .orderBy(desc(sql`ts_rank(${glossaryVector}, ${tsq})`))
+      .where(sql`${glossaryTerms.searchVector} @@ ${tsq}`)
+      .orderBy(desc(sql`ts_rank(${glossaryTerms.searchVector}, ${tsq})`))
       .limit(limit),
     db
       .select({

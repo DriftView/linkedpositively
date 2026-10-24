@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { getSettings } from "@/features/admin/settings";
-import { resolveCoach, VOICE_PREVIEW_TEXT } from "@/features/ai-coach/coach-design";
+import { BACKCHANNELS, resolveCoach, VOICE_PREVIEW_TEXT } from "@/features/ai-coach/coach-design";
 import { speakableText } from "@/features/ai-coach/prompt";
 import { getPreferences } from "@/features/ai-coach/queries";
 import { speechRequestSchema } from "@/features/ai-coach/schemas";
@@ -13,9 +13,10 @@ import { trackUsage } from "@/server/services/usage";
 
 /**
  * Speech for the coach (JSON SpeechChunkDTO: MP3 as base64 plus its lip-sync
- * track). Reads one of the member's own replies in their coach's voice, or a
- * fixed sample sentence to preview a voice in the coach picker; nothing else, so
- * this can't be used to voice arbitrary text. 503 means "use the browser's
+ * track). Reads one of the member's own replies in their coach's voice, a
+ * fixed sample sentence to preview a voice in the coach picker, or one of the
+ * fixed voice-chat backchannels ("Mm-hm."); nothing else, so this can't be
+ * used to voice arbitrary text. 503 means "use the browser's
  * voice instead".
  */
 export async function POST(request: Request) {
@@ -38,6 +39,14 @@ export async function POST(request: Request) {
     if (!spoken) return Response.json({ error: "Voice service unavailable." }, { status: 503 });
     const body: SpeechChunkDTO = { seq: 0, text: VOICE_PREVIEW_TEXT, ...spoken };
     return Response.json(body, { headers: { "cache-control": "private, max-age=86400" } });
+  }
+
+  if ("backchannel" in parsed.data) {
+    const text = BACKCHANNELS[parsed.data.backchannel];
+    const spoken = await synthesizeSpeech(text, resolveCoach((await getPreferences(viewer.id)).design).voice);
+    if (!spoken) return Response.json({ error: "Voice service unavailable." }, { status: 503 });
+    const body: SpeechChunkDTO = { seq: 0, text, ...spoken };
+    return Response.json(body, { headers: { "cache-control": "private, no-store" } });
   }
 
   const [message] = await db

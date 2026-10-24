@@ -44,9 +44,9 @@ export async function POST(request: Request) {
     async start(controller) {
       let open = true;
       // Milliseconds from the request to each first event, logged per turn to find where voice lag comes from.
-      const timing: Partial<Record<"start" | "text" | "speech" | "done", number>> = {};
+      const timing: Partial<Record<"start" | "text" | "speech" | "spoken" | "done", number>> = {};
       const send = (event: AiStreamEvent) => {
-        if (event.type in { start: 1, text: 1, speech: 1, done: 1 })
+        if (event.type in { start: 1, text: 1, speech: 1, spoken: 1, done: 1 })
           timing[event.type as keyof typeof timing] ??= Date.now() - received;
         if (!open) return;
         try {
@@ -57,6 +57,13 @@ export async function POST(request: Request) {
       };
       // Speech stops when the member leaves (no one to hear it); the turn itself still finishes.
       const speech = voice ? createSpeechStream({ voice, emit: send, signal: request.signal }) : null;
+      // Speaks the last sentence, then `spoken` (no more audio): as soon as Claude's answer ends, not after the saves.
+      let spoken: Promise<boolean> | null = null;
+      const finishSpeech = (stream: ReturnType<typeof createSpeechStream>) =>
+        (spoken ??= stream.finish().then((audio) => {
+          send({ type: "spoken" });
+          return audio;
+        }));
       let done: AiStreamEvent | null = null;
       const emit = (event: AiStreamEvent) => {
         if (speech && event.type === "text") speech.push(event.delta);
@@ -74,8 +81,9 @@ export async function POST(request: Request) {
           handsFree: Boolean(body.handsFree),
           preferences,
           emit,
+          onAnswered: speech ? () => void finishSpeech(speech) : undefined,
         });
-        if (speech && (await speech.finish()))
+        if (speech && (await finishSpeech(speech)))
           await trackUsage(viewer.id, "ai_voice_output", { provider: "elevenlabs", streamed: true });
         if (done) send(done);
       } catch (error) {

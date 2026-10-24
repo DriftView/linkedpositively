@@ -36,7 +36,9 @@ export type SpeechChunkDTO = { seq: number; text: string; audio: string | null; 
  * Events streamed from POST /api/ai/chat, one JSON object per line (NDJSON).
  * `text` deltas build the reply; `cards` merge into it; `done` carries the
  * stored reply. When the request asked to `speak`, `speech` events carry the
- * reply as audio, sentence by sentence, in order, all before `done`.
+ * reply as audio, sentence by sentence, in order, then `spoken` (no more
+ * audio for this reply), all before `done`. `spoken` can come well before
+ * `done`, which waits for the safety review and the saves.
  */
 export type AiStreamEvent =
   | { type: "start"; conversationId: string; userMessageId: string; title: string }
@@ -45,6 +47,7 @@ export type AiStreamEvent =
   | { type: "cards"; cards: AiCards }
   | { type: "safety"; level: "elevated" | "urgent"; category: string }
   | ({ type: "speech" } & SpeechChunkDTO)
+  | { type: "spoken" }
   | { type: "done"; message: ChatMessageDTO }
   | { type: "error"; message: string };
 

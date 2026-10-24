@@ -9,7 +9,13 @@ import { pickBrowserVoice, textToVisemes, visemeAt, type VisemeTrack, type Voice
 import { newFace, type CoachFace } from "./coach-avatar";
 import type { VideoSink } from "./use-video-coach";
 
-type Chunk = { text: string; audio: Promise<AudioBuffer | null> | null; visemes: VisemeTrack | null };
+type Chunk = {
+  text: string;
+  audio: Promise<AudioBuffer | null> | null;
+  visemes: VisemeTrack | null;
+  /** A backchannel ("Mm-hm.") said ahead of the reply: no caption, and back to thinking once said. */
+  filler: boolean;
+};
 
 function audioContextClass() {
   if (typeof window === "undefined") return null;
@@ -265,15 +271,17 @@ export function useCoachVoice({
     while (tokenRef.current === token) {
       const chunk = queueRef.current.shift();
       if (!chunk) break;
-      setCaption(chunk.text);
+      if (!chunk.filler) setCaption(chunk.text);
       const buffer = chunk.audio ? await chunk.audio : null;
       if (tokenRef.current !== token) return;
-      setLoadingId(null);
+      if (chunk.filler && !buffer) continue; // never in the browser's voice
+      if (!chunk.filler) setLoadingId(null);
       setSpeakingId(idRef.current);
       const sink = videoRef.current?.current;
       if (buffer && sink) await playToVideo(sink, buffer, token);
       else if (buffer) await playBuffer(buffer, chunk.visemes, token);
       else await speakWithBrowser(chunk.text, token);
+      if (chunk.filler && !queueRef.current.length && tokenRef.current === token) setSpeakingId(null);
     }
     if (tokenRef.current !== token) return;
     playingRef.current = false;
@@ -293,14 +301,17 @@ export function useCoachVoice({
     [stop, unlock],
   );
 
-  /** Adds a chunk: ElevenLabs audio, or text for the browser's voice. */
+  /** Adds a chunk: ElevenLabs audio, or text for the browser's voice. `filler`: see Chunk. */
   const enqueue = useCallback(
-    (chunk: Pick<SpeechChunkDTO, "text"> & Partial<Pick<SpeechChunkDTO, "audio" | "visemes">>) => {
+    (
+      chunk: Pick<SpeechChunkDTO, "text"> & Partial<Pick<SpeechChunkDTO, "audio" | "visemes">>,
+      { filler = false } = {},
+    ) => {
       if (idRef.current === null) return;
       const context = contextRef.current;
       const audio =
         chunk.audio && context ? context.decodeAudioData(base64ToBuffer(chunk.audio)).catch(() => null) : null;
-      queueRef.current.push({ text: chunk.text, audio, visemes: chunk.visemes ?? null });
+      queueRef.current.push({ text: chunk.text, audio, visemes: chunk.visemes ?? null, filler });
       void pump();
     },
     [pump],

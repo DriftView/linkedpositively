@@ -60,6 +60,12 @@ export type ChatInput = {
   /** Already loaded by the caller (saves a query). */
   preferences?: AiPreferencesDTO;
   emit: (event: AiStreamEvent) => void;
+  /**
+   * Claude's answer is complete (no more `text` events), called before the
+   * safety review and the saves finish, so speech can catch up at once.
+   * Not called for fallback replies, whose text comes after those.
+   */
+  onAnswered?: () => void;
 };
 
 const FALLBACK_TEXT: Record<Exclude<AiOutcome, "answered">, string> = {
@@ -315,6 +321,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
       });
       turnMessages = result.messages;
       if (result.refused) outcome = "fallback_refusal";
+      else input.onAnswered?.();
     } catch (error) {
       outcome = "fallback_error";
       const status = error instanceof Anthropic.APIError ? error.status : null;

@@ -1,0 +1,4 @@
+ALTER TABLE "glossary_terms" ADD COLUMN "search_vector" "tsvector" GENERATED ALWAYS AS ((setweight(to_tsvector('english', "name"), 'A') || setweight(to_tsvector('english', "definition_text"), 'D'))) STORED;--> statement-breakpoint
+ALTER TABLE "pages" ADD COLUMN "search_vector" "tsvector" GENERATED ALWAYS AS ((setweight(to_tsvector('english', coalesce("title", '')), 'A') || setweight(to_tsvector('english', coalesce("summary", '')), 'B') || setweight(to_tsvector('english', regexp_replace("body_html", '<[^>]+>', ' ', 'g')), 'D'))) STORED;--> statement-breakpoint
+CREATE INDEX "glossary_terms_search_vector_gin" ON "glossary_terms" USING gin ("search_vector");--> statement-breakpoint
+CREATE INDEX "pages_search_vector_gin" ON "pages" USING gin ("search_vector");
