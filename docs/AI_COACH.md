@@ -43,7 +43,13 @@ Code: `src/features/ai-coach/`. Database: `src/server/db/schema/ai.ts`, migratio
      - `connect_peer_navigator`: a card with a draft message the member edits and sends to their navigator. Members without a navigator get study-team contacts instead.
      - `request_human_support`: Safety layer 3. The coach raises an alert itself (support, elevated or urgent).
 
-   Spoken turns are tuned for a fast first word: the knowledge search for the member's own words runs alongside the first database reads and goes to Claude as an already-finished `search_knowledge` round (stored like any tool round), so most answers need one model call instead of two; thinking is `between_tools` (no extended thinking); and the conversation and member message are written while the reply starts (tools, alerts and the final save wait for those writes). The first spoken chunk is cut at a comma when the first sentence is long. Each turn logs `ai chat timing` (ms from the request to the first `start`, `text`, `speech` and `done` events).
+   Spoken turns are tuned for a fast first word: the knowledge search for the member's own words runs alongside the first database reads and goes to Claude as an already-finished `search_knowledge` round (stored like any tool round), so most answers need one model call instead of two; thinking is `between_tools` (no extended thinking); and the conversation and member message are written while the reply starts (tools, alerts and the final save wait for those writes). Also for spoken turns:
+   - The search may hold up the reply for 350 ms at most (`SPOKEN_SEARCH_WAIT_MS`). After that Claude starts anyway and can call `search_knowledge` itself.
+   - Small talk ("hi", "thanks", "ok cool": `isSmallTalk` in `lib.ts`) skips the search.
+   - The reply is capped at 2,048 tokens, and the persona asks for a short opening sentence, so the voice can start after a few words.
+   - The first spoken chunk is cut at the first comma when the first sentence is long.
+
+   Each turn logs `ai chat timing`: ms from the request to each step (`loaded`, `searched`, `firstText`) and to the first `start`, `text`, `speech`, `spoken` and `done` events. In development the browser console also shows `[voice timing]`, measured from the moment the member stopped talking: `transcript`, `sent`, `firstByte`, `firstText`, `firstAudioArrived`, `heard`.
 5. **Save the reply** with its cards (resources, sources, hand-off, crisis), outcome, latency and token counts.
 
 **Refusals:** requests use Anthropic's server-side refusal fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`). If the safety classifiers decline, the API re-runs the request on Anthropic's recommended fallback model. If the whole chain refuses, the member gets the refusal fallback (below).
@@ -113,21 +119,35 @@ Each case below has a defined reply. The member always sees how to reach people,
   - "Read replies aloud" is on.
 - **Server voice (ElevenLabs):**
   - The chat request asks to `speak`. `speech-stream.ts` cuts the streamed text into sentences (`SpeechChunker` in `voice-lib.ts`), with a short first chunk so speech starts quickly.
-  - Each sentence goes to ElevenLabs `text-to-speech/{voice}/with-timestamps`, at most 2 requests at a time, with `previous_text` for natural intonation.
-  - The audio comes back as `speech` events, in order, before `done`.
+  - Each sentence is **streamed** from ElevenLabs (`text-to-speech/{voice}/stream/with-timestamps`, raw PCM `pcm_22050`, speaker boost off), at most 3 sentences at a time, with `previous_text` for natural intonation.
+  - Each piece of audio goes out as a `speech` event the moment ElevenLabs makes it: `seq` (the sentence), `part`, and `last` on the sentence's final piece. Sentences go in order, before `done`. A piece's visemes are timed from the start of its sentence.
   - Up to 2,500 characters are spoken per reply. Speech stops if the member leaves the page; the turn itself still finishes and is saved.
 - **Browser voice fallback:** without ElevenLabs, or when a request fails, the browser's own speech synthesis reads each sentence. Once ElevenLabs fails during a reply, the browser reads the rest, so the voice doesn't switch back and forth.
 - **Replaying a reply:** `POST /api/ai/speech` reads a saved reply in the coach's voice. With `{ preview }` it reads a fixed sample sentence for the coach picker. It never voices arbitrary text.
-- **Playback** (`use-coach-voice.ts`): one Web Audio context, unlocked on the member's first tap, which also lets iOS play later chunks.
+- **Playback** (`use-coach-voice.ts`):
+  - One Web Audio context, unlocked on the member's first tap, which also lets iOS play later chunks.
+  - Streamed PCM is played without decoding. Each piece is placed straight after the last one on the audio clock, so speech starts on the first piece and there are no gaps between sentences.
+  - Saved replies, previews, backchannels and the greeting are MP3.
+  - Stopping fades the voice out over 40 ms (no click).
 - **When ElevenLabs is out of credits or down** (`voice-status.ts`): out of credits (402, or 401 `quota_exceeded`) or a rejected key skips ElevenLabs for 10 minutes; two network errors or 5xx in a row skip it for 2 minutes (429 "busy" never does). While it's skipped, replies are read by the browser's own voice straight away, sentence by sentence, then ElevenLabs is tried again. The browser voice matches the coach (a female voice for Mina where the browser has one, `pickBrowserVoice` in `voice-lib.ts`). The state is per server instance. Voice chat and video are unchanged: during an outage, voice chat turns may fail to transcribe and the video face stays still.
 - **Admin banner** (`components/admin/voice-status-banner.tsx`, on the admin dashboard and the AI Coach page): shows when ElevenLabs is being skipped, out of credits, or under 20% of the period's credits (from `GET /v1/user/subscription`, checked every 5 minutes at most). Nothing shows when usage-based billing is on and it's working. The AI Coach page also says when the credits couldn't be checked (the API key needs the User: Read permission).
 - **Hands-free voice chat** (`use-hands-free.ts`, the voice chat button next to the mic):
-  - An open mic with voice activity detection (echo cancellation and noise suppression on). The member just talks; a 0.55 s pause ends their turn (`END_OF_TURN_SILENCE_MS`).
+  - An open mic with voice activity detection (echo cancellation and noise suppression on). The member just talks, and a pause ends their turn. How long a pause depends on the live words so far (`endOfTurnSilenceMs` in `voice-lib.ts`):
+    - 0.35 s when they sound finished (a full stop or a question mark);
+    - 0.9 s after "and", "um" or a trailing comma;
+    - otherwise 0.55 s (`END_OF_TURN_SILENCE_MS`).
+
+    The mic is checked every 20 ms.
   - With ElevenLabs, each turn is **transcribed live** while the member talks (`live-transcription.ts`, real-time `scribe_v2_realtime`), so the words are ready when they stop. The browser gets a single-use token from `POST /api/ai/transcription-token` (the API key stays on the server). Audio is only sent from just before speech is detected (a 0.5 s pre-roll) to the end of the turn; our pause detection ends the turn (manual commits).
-  - **Fallback:** each turn is also recorded. If live transcription is unavailable, breaks, or is slow (over 4 s), the recording is uploaded and transcribed as before (`scribe_v1`, sound tags off). Without ElevenLabs, the browser's speech recognition is used. Push-to-talk mic messages always upload.
+  - **Fallback:** each turn is also recorded. If live transcription is unavailable, breaks, or is slow (over 1.5 s), the recording is uploaded and transcribed as before (`scribe_v1`, sound tags off). Without ElevenLabs, the browser's speech recognition is used. Push-to-talk mic messages always upload.
   - The words are sent, the coach speaks, then it listens again.
-  - **Interrupting:** talking over the coach stops it (about a quarter of a second of speech; `TalkOverDetector` in `voice-lib.ts` learns how loud the coach's own echo is and ignores short dips between syllables), and so does "Stop talking". Talking while the coach is still thinking also counts: that reply isn't spoken. What the member says while interrupting is kept as the start of their turn. A message said while a reply is still arriving is sent once that turn is saved.
-  - **Outside voice chat** (replies to mic messages, "Read replies aloud", replaying a reply), talking stops the coach too (`use-talk-over.ts`): while it speaks, the mic is open and checked on the device only (nothing recorded or sent), and only if the member has already allowed the microphone, so a reply never brings up a permission prompt. Tapping the mic button also stops the coach.
+  - **Interrupting:** talking over the coach stops it. So do "Stop talking" and tapping the mic.
+    - **Detection:** about 0.2 s of speech. `TalkOverDetector` in `voice-lib.ts` learns how loud the coach's own echo is and ignores short dips between syllables. It keeps the echo level for the rest of the call, so after the first reply it listens again almost as soon as the coach starts.
+    - **While thinking:** talking while the coach is still thinking also counts, and that reply isn't spoken.
+    - **What stops:** the voice fades out at once and the reply is **cancelled** (`interruptReply` in `ai-coach.tsx` aborts the request). The server stops Claude and the speech, and saves what was said so far.
+    - **What the coach is told:** the member's next message carries what they actually heard (`heard()` in `use-coach-voice.ts`, sent as `interrupted`). The coach gets it as a `<voice_note>`, so it doesn't assume the rest was heard.
+    - **The next turn:** what the member says while interrupting is kept as the start of their turn, and is sent at once. It waits only for the cancelled reply's row to be saved (`savingTurns` in `engine.ts`, at most 1.5 s), so the history stays in order.
+  - **Outside voice chat** (replies to mic messages, "Read replies aloud", replaying a reply), talking stops the coach too (`use-talk-over.ts`): while it speaks, the mic is open and checked on the device only (nothing recorded or sent), and only if the member has already allowed the microphone, so a reply never brings up a permission prompt. The mic warms up as soon as a reply is on its way to be heard, so it's ready when the coach starts. Tapping the mic button, or "Stop {coach} talking" above the composer, also stops the coach.
   - **Captions** of the current sentence show above the conversation. The full reply is in the conversation as usual.
   - **Controls:** Mute and End voice chat. The mic switches itself off after 90 s without speech.
   - Usage: `ai_message` events carry `handsFree`.
@@ -143,6 +163,26 @@ Each case below has a defined reply. The member always sees how to reach people,
   - In `use-coach-voice.ts`, while the face is live, audio goes to it instead of the speakers. The queue still waits each sentence's length, so captions, "Speaking" and hands-free turn-taking are unchanged. Interrupting ("Stop talking", or talking over it) interrupts the face.
   - **Costs:** Anam bills per minute, and every voice chat now uses video. Video runs only while a call is open: it ends when the call ends, pauses while the tab is hidden (and comes back when it's shown), and after a failure the drawn coach takes over for the rest of the call (with a toast). The admin "Video coach" setting turns it off for everyone.
   - **Offered only when** the Video coach and Voice settings are on and the server has `ANAM_API_KEY` and ElevenLabs. Browser-voice sentences (no ElevenLabs audio) play through the speakers with the face still.
+
+## Greeting on opening the app
+
+The floating coach says hello when a member opens the app (`use-coach-greeting.ts`, `greeting.ts`).
+
+- **What it does:** a speech bubble with a short line appears by the coach bubble, with a soft pulse.
+  - The line fits the time of day and names the coach, for example "Good evening, Sam. I'm Mina, your AI coach. Small steps still count…".
+  - With voice on, the coach says it.
+- **Wording:** lines come from a fixed, reviewed list (`GREETINGS`), never from the model, and assume nothing about how anyone feels.
+  - The member's first name is in the text only, and only when personalization is on.
+  - The audio is the same for everyone with that coach, so the speech route makes each line once per server instance and keeps it (`{ greeting, hour }` in `POST /api/ai/speech`).
+- **Sound:** browsers only allow sound after a tap or key press on the page, and opening the app after signing in is a new page. So the coach speaks at once only when sound is already allowed. Otherwise it speaks on the member's first tap or key press anywhere, or on "Hear {coach}". The bubble's buttons open the coach or close the greeting.
+- **When it shows:**
+  - At most once a browser session and once a day.
+  - After the page settles (1.2 s), and after any open dialog (a survey, a level-up) is closed.
+  - It goes away 8 s after it's said, or after 30 s unheard.
+- **When it never shows:** on the AI Coach page, while the panel is open, during staff impersonation, for members without the coach (the control arm), or when the coach is switched off.
+- **Switching it off:** members can turn it off under Coach settings, "Greet me when I open the app". This is stored on the device.
+- **Accessibility:** the text is announced politely to screen readers. Under reduced motion there's no pulse or slide.
+- **Usage:** `ai_greeting` events (`heard: false` when shown, `true` when said).
 
 ## Choosing a coach
 

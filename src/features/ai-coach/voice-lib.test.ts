@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   alignmentToVisemes,
   charViseme,
+  endOfTurnSilenceMs,
   pickBrowserVoice,
   SpeechChunker,
   TalkOverDetector,
@@ -23,7 +24,7 @@ describe("SpeechChunker", () => {
     const text =
       "When you start PrEP, your provider will usually ask for an HIV test first, and then you check in every few months.";
     const chunks = feed(new SpeechChunker(), text);
-    expect(chunks[0]).toBe("When you start PrEP, your provider will usually ask for an HIV test first,");
+    expect(chunks[0]).toBe("When you start PrEP,");
     expect(chunks.join(" ")).toBe(text);
   });
 
@@ -49,6 +50,11 @@ describe("SpeechChunker", () => {
     const chunks = feed(new SpeechChunker({ firstMin: 20, min: 90, max: 320 }), long);
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.every((chunk) => chunk.length <= 320)).toBe(true);
+  });
+
+  it("starts on a short opening sentence", () => {
+    const chunks = feed(new SpeechChunker(), "That makes sense. PrEP is a daily pill that lowers the chance of HIV.");
+    expect(chunks[0]).toBe("That makes sense.");
   });
 
   it("returns nothing for an empty reply", () => {
@@ -145,10 +151,36 @@ describe("TalkOverDetector", () => {
     expect(run(new TalkOverDetector(), (tick) => (tick === 30 || tick === 31 ? 0.4 : echo(tick)), 200)).toBe(-1);
   });
 
+  it("after restart, keeps what it learned about the echo and reacts faster", () => {
+    const detector = new TalkOverDetector();
+    run(detector, echo, 60); // the first reply: learns the echo
+    detector.restart();
+    const fired = run(detector, (tick) => (tick < 2 ? echo(tick) : 0.3 + echo(tick)), 40);
+    expect(fired).toBeGreaterThan(1);
+    expect((fired - 2) * 50).toBeLessThanOrEqual(250);
+  });
+
   it("starts over after reset", () => {
     const detector = new TalkOverDetector();
     run(detector, () => 0.3, 10);
     detector.reset();
     expect(detector.push(0.3, 50, 0.03)).toBe(false);
+  });
+});
+
+describe("endOfTurnSilenceMs", () => {
+  it("ends quickly when the words so far sound finished", () => {
+    expect(endOfTurnSilenceMs("Where can I get tested?")).toBeLessThanOrEqual(400);
+    expect(endOfTurnSilenceMs("Okay, thank you.")).toBeLessThanOrEqual(400);
+  });
+
+  it("waits longer after a trailing filler or joining word", () => {
+    for (const text of ["I was thinking and", "so um", "my doctor said,", "because"])
+      expect(endOfTurnSilenceMs(text), text).toBeGreaterThanOrEqual(800);
+  });
+
+  it("uses the usual pause when there are no words yet or they don't tell", () => {
+    expect(endOfTurnSilenceMs("")).toBe(550);
+    expect(endOfTurnSilenceMs("I want to know about PrEP")).toBe(550);
   });
 });

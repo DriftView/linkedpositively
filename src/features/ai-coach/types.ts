@@ -8,6 +8,7 @@ import type {
   AiRiskLevel,
   AiTopic,
 } from "@/server/db/schema/ai";
+import type { AiCoachId } from "@/server/db/schema/ai";
 import type { CoachDesign } from "./coach-design";
 import type { VisemeTrack } from "./voice-lib";
 
@@ -29,11 +30,27 @@ export type ChatMessageDTO = {
 
 export type AiPreferencesDTO = { personalize: boolean; autoSpeak: boolean; design: CoachDesign };
 
-/** One spoken piece of a reply: MP3 (base64) with its lip-sync track, or null audio = use the browser's voice for `text`. */
-export type SpeechChunkDTO = { seq: number; text: string; audio: string | null; visemes: VisemeTrack | null };
+/**
+ * One spoken piece of a reply: audio (base64) with its lip-sync track, or null
+ * audio = use the browser's voice for `text`. Saved replies, previews and
+ * backchannels are one MP3 each. A streamed reply sends each sentence (`seq`)
+ * as several pieces of raw PCM (`format` "pcm", see pcm.ts STREAM_FORMAT) as
+ * ElevenLabs makes them: `part` 0, 1, 2…, the last one with `last` true. A
+ * piece's visemes are timed from the start of its sentence.
+ */
+export type SpeechChunkDTO = {
+  seq: number;
+  text: string;
+  audio: string | null;
+  visemes: VisemeTrack | null;
+  format?: "mp3" | "pcm";
+  part?: number;
+  last?: boolean;
+};
 
 /**
  * Events streamed from POST /api/ai/chat, one JSON object per line (NDJSON).
+ * `timing` (development only) reports how long the server took for each step.
  * `text` deltas build the reply; `cards` merge into it; `done` carries the
  * stored reply. When the request asked to `speak`, `speech` events carry the
  * reply as audio, sentence by sentence, in order, then `spoken` (no more
@@ -48,6 +65,7 @@ export type AiStreamEvent =
   | { type: "safety"; level: "elevated" | "urgent"; category: string }
   | ({ type: "speech" } & SpeechChunkDTO)
   | { type: "spoken" }
+  | { type: "timing"; ms: Record<string, number> }
   | { type: "done"; message: ChatMessageDTO }
   | { type: "error"; message: string };
 
@@ -126,4 +144,6 @@ export type AiCoachData = {
   aiAvailable: boolean;
   timezone: string;
   firstName: string;
+  /** The coaches members can choose now (coach-availability.ts). */
+  coachIds: AiCoachId[];
 };

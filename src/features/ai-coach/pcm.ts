@@ -1,11 +1,34 @@
 /**
- * Audio helpers for the video coach. Anam lip-syncs raw 16-bit PCM
- * (little-endian, mono, 16 kHz); ElevenLabs sends MP3, which the browser
- * decodes to float samples. Pure functions, so they're testable without a
- * browser.
+ * Audio helpers for the coach's voice. Streamed replies arrive from
+ * ElevenLabs as raw 16-bit PCM (little-endian, mono, STREAM_SAMPLE_RATE),
+ * played without decoding; saved replies and previews are MP3, which the
+ * browser decodes. The video face (Anam) lip-syncs 16-bit PCM at 16 kHz.
+ * Pure functions, so they're testable without a browser.
  */
 
 export const PCM_SAMPLE_RATE = 16_000;
+/** Sample rate of streamed reply audio (ElevenLabs `pcm_22050`: the quality of the old MP3, no decoding). */
+export const STREAM_SAMPLE_RATE = 22_050;
+export const STREAM_FORMAT = `pcm_${STREAM_SAMPLE_RATE}` as const;
+
+/** Little-endian 16-bit PCM from base64 (a trailing odd byte is dropped). */
+export function base64ToPcm16(base64: string): Int16Array {
+  const binary = atob(base64);
+  const samples = new Int16Array(binary.length >> 1);
+  for (let i = 0; i < samples.length; i++) {
+    const value = binary.charCodeAt(i * 2) | (binary.charCodeAt(i * 2 + 1) << 8);
+    samples[i] = value >= 0x8000 ? value - 0x10000 : value;
+  }
+  return samples;
+}
+
+/** 16-bit samples as floats from -1 to 1 (for an AudioBuffer). */
+export function pcm16ToFloat(pcm: Int16Array): Float32Array<ArrayBuffer> {
+  const out = new Float32Array(pcm.length);
+  for (let i = 0; i < pcm.length; i++) out[i] = pcm[i]! < 0 ? pcm[i]! / 0x8000 : pcm[i]! / 0x7fff;
+  return out;
+}
+
 /** Half a second per message, so no single send is large. */
 export const PCM_CHUNK_SAMPLES = PCM_SAMPLE_RATE / 2;
 

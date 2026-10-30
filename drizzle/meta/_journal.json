@@ -57,6 +57,13 @@
       "when": 1792819306153,
       "tag": "0007_knowledge_search",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793359712415,
+      "tag": "0008_olivia_coach",
+      "breakpoints": true
     }
   ]
 }

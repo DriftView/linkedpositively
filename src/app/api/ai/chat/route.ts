@@ -16,8 +16,10 @@ export const maxDuration = 120;
 /**
  * Sends a message to the AI Coach and streams the reply as NDJSON
  * (one AiStreamEvent per line). The turn finishes and is saved even if the
- * member closes the page midway. With `speak`, the reply is also streamed as
- * speech, sentence by sentence (speech-stream.ts), before `done`.
+ * member closes the page midway, except a spoken turn: the member cancels it
+ * by talking over the coach, and what was said so far is saved. With `speak`,
+ * the reply is also streamed as speech, sentence by sentence
+ * (speech-stream.ts), before `done`.
  */
 export async function POST(request: Request) {
   const received = Date.now();
@@ -37,17 +39,21 @@ export async function POST(request: Request) {
   const body = parsed.data;
   const [settings, preferences] = await Promise.all([getSettings(), getPreferences(viewer.id)]);
   const speak = Boolean(body.speak) && voiceConfigured() && settings.aiVoiceEnabled;
+  const spokenTurn = Boolean(body.viaVoice || body.handsFree);
   const voice = speak ? resolveCoach(preferences.design).voice : null;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let open = true;
-      // Milliseconds from the request to each first event, logged per turn to find where voice lag comes from.
-      const timing: Partial<Record<"start" | "text" | "speech" | "spoken" | "done", number>> = {};
+      // Milliseconds from the request to each step and first event, logged per turn to find where voice lag comes from.
+      const timing: Record<string, number> = {};
+      const mark = (step: string) => (timing[step] ??= Date.now() - received);
       const send = (event: AiStreamEvent) => {
-        if (event.type in { start: 1, text: 1, speech: 1, spoken: 1, done: 1 })
-          timing[event.type as keyof typeof timing] ??= Date.now() - received;
+        if (event.type in { start: 1, text: 1, speech: 1, spoken: 1, done: 1 }) mark(event.type);
+        // Development: the browser shows the server's timing with its own (voice timing in the console).
+        if (event.type === "done" && process.env.NODE_ENV === "development" && open)
+          controller.enqueue(encoder.encode(`${JSON.stringify({ type: "timing", ms: timing })}\n`));
         if (!open) return;
         try {
           controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
@@ -80,6 +86,10 @@ export async function POST(request: Request) {
           viaVoice: Boolean(body.viaVoice),
           handsFree: Boolean(body.handsFree),
           preferences,
+          settings,
+          interrupted: body.interrupted ?? null,
+          signal: spokenTurn ? request.signal : undefined,
+          mark,
           emit,
           onAnswered: speech ? () => void finishSpeech(speech) : undefined,
         });

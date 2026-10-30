@@ -10,8 +10,8 @@ import { PCM_SAMPLE_RATE } from "./pcm";
  */
 
 const REALTIME_URL = "wss://api.elevenlabs.io/v1/speech-to-text/realtime";
-/** A turn's words should arrive well within this; otherwise use the recording. */
-export const COMMIT_TIMEOUT_MS = 4000;
+/** A turn's words should arrive well within this; otherwise use the recording (uploaded and transcribed instead). */
+export const COMMIT_TIMEOUT_MS = 1500;
 /** Server messages that end the session for good (no point reconnecting this call). */
 const FATAL = new Set(["auth_error", "quota_exceeded"]);
 /** Server messages that mean the session is unusable now. */
@@ -41,6 +41,7 @@ export class LiveTranscriber {
   private socket: WebSocket | null = null;
   private waiters: Waiter[] = [];
   private isReady = false;
+  private partial = "";
   /** A permanent failure (bad key, out of quota): stay on uploads for the rest of the call. */
   disabled = false;
 
@@ -49,6 +50,11 @@ export class LiveTranscriber {
 
   get ready() {
     return this.isReady && !this.disabled;
+  }
+
+  /** The words of the turn so far (live, not final): tells whether the member sounds finished. */
+  get partialText() {
+    return this.partial;
   }
 
   /** Opens a session. Resolves to whether it is ready. */
@@ -91,6 +97,8 @@ export class LiveTranscriber {
         if (type === "session_started") {
           this.isReady = true;
           settle(true);
+        } else if (type === "partial_transcript") {
+          if (typeof data.text === "string") this.partial = data.text;
         } else if (type === "committed_transcript") {
           this.settleNext(typeof data.text === "string" ? data.text.trim() : "");
         } else if (type === "insufficient_audio_activity") {
@@ -122,6 +130,7 @@ export class LiveTranscriber {
 
   /** Ends the turn with its last audio. Resolves to the words (possibly ""), or null if live transcription failed. */
   commit(last: Int16Array): Promise<string | null> {
+    this.partial = "";
     if (!this.ready) return Promise.resolve(null);
     return new Promise((resolve) => {
       const waiter: Waiter = {
@@ -187,6 +196,7 @@ export class LiveTranscriber {
   private reset() {
     this.socket = null;
     this.isReady = false;
+    this.partial = "";
     for (const waiter of this.waiters.splice(0)) {
       clearTimeout(waiter.timer);
       waiter.resolve(null);

@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { and, asc, count, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { getSettings } from "@/features/admin/settings";
+import type { AppSettings } from "@/features/admin/settings-schema";
 import { getMyCoach } from "@/features/peer-nav/queries";
 import { can, type Viewer } from "@/server/auth/session";
 import { db } from "@/server/db/client";
@@ -25,7 +26,7 @@ import { getPreferences } from "./queries";
 import { resolveCoach } from "./coach-design";
 import { buildMemberContext, buildPersona, conversationTitle, SYSTEM_PROMPT } from "./prompt";
 import { detectKeywordRisk, maxRisk, riskRank } from "./safety";
-import { clip } from "./lib";
+import { clip, isSmallTalk } from "./lib";
 import { knowledgeResult, runTool, TOOLS, type ToolContext } from "./tools";
 import type { AiPreferencesDTO, AiStreamEvent, ChatMessageDTO } from "./types";
 
@@ -47,6 +48,27 @@ import type { AiPreferencesDTO, AiStreamEvent, ChatMessageDTO } from "./types";
 
 const MAX_TOOL_ROUNDS = 6;
 const CLASSIFIER_HISTORY = 4;
+/** A spoken turn's knowledge search may hold up the reply this long; after that Claude starts and can search itself. */
+const SPOKEN_SEARCH_WAIT_MS = 350;
+/** Spoken replies are short: a lower ceiling lets them start sooner. */
+const SPOKEN_MAX_TOKENS = 2048;
+/** How long a turn waits for the previous turn in its conversation to be saved (an interrupted reply saving). */
+const PREVIOUS_TURN_WAIT_MS = 1500;
+
+/** Added to the persona for spoken replies. */
+const SPOKEN_STYLE =
+  "- This reply is spoken aloud as it is written: open with a short first sentence of a few words (for example a brief acknowledgement), then continue. Plain sentences, no lists.";
+
+/**
+ * Turns still being saved, by conversation (this server instance). A member
+ * who interrupts the coach sends their next message at once; it waits here
+ * for the interrupted reply's row, so the history stays in order.
+ */
+const savingTurns = new Map<string, Promise<void>>();
+
+function waitFor<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([promise, new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))]);
+}
 
 export class ChatError extends Error {}
 
@@ -59,6 +81,16 @@ export type ChatInput = {
   handsFree?: boolean;
   /** Already loaded by the caller (saves a query). */
   preferences?: AiPreferencesDTO;
+  settings?: AppSettings;
+  /**
+   * The member interrupted the coach's previous spoken reply, having heard
+   * only this much of it: noted with their message so the coach knows.
+   */
+  interrupted?: string | null;
+  /** Aborts the reply (the member talked over the coach): what was said so far is saved. */
+  signal?: AbortSignal;
+  /** Marks a step's time for the voice timing log. */
+  mark?: (step: string) => void;
   emit: (event: AiStreamEvent) => void;
   /**
    * Claude's answer is complete (no more `text` events), called before the
@@ -87,17 +119,31 @@ const LONG_CONVERSATION_TEXT =
   "This conversation has gotten long, so please start a new one with the New chat button. I'll be right here. If you need help now and you're in danger, call 911 or call or text 988.";
 
 export async function runChatTurn(input: ChatInput): Promise<void> {
+  // Whatever happens, the turn stops holding up the next one in its conversation (savingTurns).
+  let release = () => undefined as void;
+  try {
+    await chatTurn(input, (finish) => (release = finish));
+  } finally {
+    release();
+  }
+}
+
+async function chatTurn(input: ChatInput, onSaving: (finish: () => void) => void): Promise<void> {
   const { viewer, emit } = input;
   const started = Date.now();
   // Spoken replies are short and a member is listening: everything below is tuned so the coach starts talking sooner.
   const spoken = Boolean(input.viaVoice || input.handsFree);
   // A spoken turn's knowledge search runs now, alongside the reads (same query limit as the tool).
   const searchQuery = clip(input.text, 200);
-  const prefetched = spoken && aiConfigured() ? searchKnowledge(viewer, searchQuery).catch(() => null) : null;
+  // Small talk ("hi", "thanks") has nothing to look up.
+  const prefetched =
+    spoken && aiConfigured() && !isSmallTalk(input.text)
+      ? searchKnowledge(viewer, searchQuery).catch(() => null)
+      : null;
   // Every read up front, in one round: the member is waiting (in voice chat, listening).
   const existingId = input.conversationId;
   const [settings, existing, history, preferences, [profile], navigator, [{ recent }]] = await Promise.all([
-    getSettings(),
+    input.settings ?? getSettings(),
     // The conversation (owned by the viewer, not hidden) and its turn count.
     existingId
       ? Promise.all([
@@ -119,7 +165,12 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         ])
       : null,
     // What was said so far (this message isn't saved yet). Used only once the conversation checks out.
-    existingId ? loadHistory(existingId) : Promise.resolve([]),
+    // Waits for an interrupted reply in this conversation to be saved first.
+    existingId
+      ? waitFor(savingTurns.get(existingId) ?? Promise.resolve(), PREVIOUS_TURN_WAIT_MS).then(() =>
+          loadHistory(existingId),
+        )
+      : Promise.resolve([]),
     // Facts about the member (the member context note, the tools).
     // The hourly count is taken before this message is saved (so the limit check below uses >=).
     input.preferences ?? getPreferences(viewer.id),
@@ -140,6 +191,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         ),
       ),
   ]);
+  input.mark?.("loaded");
   if (!settings.aiCoachEnabled) throw new ChatError("The AI Coach is switched off right now.");
 
   let title = conversationTitle(input.text);
@@ -175,15 +227,28 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         }).format(new Date()),
       })
     : null;
-  const userParam: Anthropic.Beta.BetaMessageParam = memberContext
+  const heard = input.interrupted?.trim();
+  const interruptedNote =
+    input.interrupted == null
+      ? null
+      : `<voice_note>The member talked over your last spoken reply ${heard ? `and only heard: "${clip(heard, 400)}"` : "before hearing any of it"}. Answer what they say now; don't repeat the rest unless they ask.</voice_note>`;
+  const notes = [memberContext, interruptedNote].filter((note): note is string => Boolean(note));
+  const userParam: Anthropic.Beta.BetaMessageParam = notes.length
     ? {
         role: "user",
-        content: [
-          { type: "text", text: memberContext },
-          { type: "text", text: input.text },
-        ],
+        content: [...notes.map((note) => ({ type: "text" as const, text: note })), { type: "text", text: input.text }],
       }
     : { role: "user", content: input.text };
+
+  // This turn is "saving" until its reply row is written (see savingTurns).
+  let releaseTurn = () => undefined as void;
+  const saving = new Promise<void>((resolve) => (releaseTurn = resolve));
+  savingTurns.set(conversationId, saving);
+  const finishSaving = () => {
+    releaseTurn();
+    if (savingTurns.get(conversationId) === saving) savingTurns.delete(conversationId);
+  };
+  onSaving(finishSaving);
 
   const stored = (async () => {
     if (isNew) await db.insert(aiConversations).values({ id: conversationId, userId: viewer.id, title });
@@ -234,6 +299,7 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         reason: "Possible crisis wording in a member message.",
       }),
     );
+    keywordAlert.catch(() => undefined); // awaited before the reply is saved; this only keeps an early failure from going unhandled
   }
 
   // Safety layer 2: Claude classifier, in parallel with the reply.
@@ -274,7 +340,9 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
   let turnMessages: Anthropic.Beta.BetaMessageParam[] = [];
   const usage = { input: 0, output: 0 };
   let replyModel = AI_MODEL;
+  let interrupted = false;
   const emitText = (delta: string) => {
+    if (!text) input.mark?.("firstText");
     text += delta;
     emit({ type: "text", delta });
   };
@@ -308,18 +376,24 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
         tone: coach.tone,
         replyLength: coach.replyLength,
       });
+      // Spoken: a short first sentence reaches the member's ears sooner (the voice starts after it).
+      const style = spoken ? `${persona}\n${SPOKEN_STYLE}` : persona;
       // Spoken: a faster model with no extended thinking, and the knowledge search already done.
       replyModel = spoken ? VOICE_MODEL : AI_MODEL;
-      const hits = prefetched ? await prefetched : null;
+      const hits = prefetched ? await waitFor(prefetched, SPOKEN_SEARCH_WAIT_MS) : null;
+      input.mark?.("searched");
       const searched = hits?.length ? searchedRound(searchQuery, hits, toolContext) : [];
       if (searched.length) emit({ type: "cards", cards: { ...cards } });
-      const result = await streamReply(history, userParam, toolContext, emitText, usage, persona, {
+      const result = await streamReply(history, userParam, toolContext, emitText, usage, style, {
         model: replyModel,
         effort: spoken ? "low" : "medium",
         noThinking: spoken,
         searched,
+        maxTokens: spoken ? SPOKEN_MAX_TOKENS : undefined,
+        signal: input.signal,
       });
       turnMessages = result.messages;
+      interrupted = result.interrupted;
       if (result.refused) outcome = "fallback_refusal";
       else input.onAnswered?.();
     } catch (error) {
@@ -333,7 +407,13 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
   }
 
   // The member's message and the safety review must be on the record (and its card shown) before the reply is final.
-  await Promise.all([stored, keywordAlert, classification]);
+  // An interrupted reply is saved at once (the member's next message is waiting for it); its safety review finishes after.
+  try {
+    await Promise.all(interrupted ? [stored, keywordAlert] : [stored, keywordAlert, classification]);
+  } catch (error) {
+    finishSaving();
+    throw error;
+  }
 
   // Fallbacks: a defined reply (after any partial answer), related approved content, and a clean history entry.
   if (outcome !== "answered") {
@@ -355,7 +435,30 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
     await trackUsage(viewer.id, "ai_fallback", { outcome });
   }
 
-  const [saved] = await db
+  if (interrupted && !text.trim()) {
+    // Cut off before saying anything: no reply to save (the member's message is saved and reviewed).
+    try {
+      await db
+        .update(aiConversations)
+        .set({ messageCount: sql`${aiConversations.messageCount} + 1`, lastMessageAt: new Date() })
+        .where(eq(aiConversations.id, conversationId));
+    } finally {
+      finishSaving();
+    }
+    await classification;
+    return;
+  }
+  // Cut off partway: marked as such in the conversation (the member sees it, and so does Claude next turn).
+  if (interrupted) {
+    text = `${text.trimEnd()} …`;
+    const last = turnMessages.at(-1);
+    if (last?.role === "assistant" && Array.isArray(last.content)) {
+      const block = last.content.at(-1);
+      if (block && block.type === "text") block.text = `${block.text.trimEnd()} …`;
+    }
+  }
+  const crisisAtSave = cards.crisis?.level ?? null;
+  const savedRow = db
     .insert(aiMessages)
     .values({
       conversationId,
@@ -371,10 +474,22 @@ export async function runChatTurn(input: ChatInput): Promise<void> {
       latencyMs: Date.now() - started,
     })
     .returning({ id: aiMessages.id, createdAt: aiMessages.createdAt });
-  await db
-    .update(aiConversations)
-    .set({ messageCount: sql`${aiConversations.messageCount} + 2`, lastMessageAt: new Date() })
-    .where(eq(aiConversations.id, conversationId));
+  let saved: { id: string; createdAt: Date };
+  try {
+    [saved] = await savedRow;
+    await db
+      .update(aiConversations)
+      .set({ messageCount: sql`${aiConversations.messageCount} + 2`, lastMessageAt: new Date() })
+      .where(eq(aiConversations.id, conversationId));
+  } finally {
+    finishSaving();
+  }
+  if (interrupted) {
+    await classification;
+    // The safety review finished after the save: keep its crisis card with the reply.
+    if (cards.crisis && cards.crisis.level !== crisisAtSave)
+      await db.update(aiMessages).set({ cards }).where(eq(aiMessages.id, saved.id));
+  }
 
   const message: ChatMessageDTO = {
     id: saved.id,
@@ -412,7 +527,7 @@ function searchedRound(query: string, hits: KnowledgeHit[], ctx: ToolContext): A
   ];
 }
 
-type ReplyResult = { messages: Anthropic.Beta.BetaMessageParam[]; refused: boolean };
+type ReplyResult = { messages: Anthropic.Beta.BetaMessageParam[]; refused: boolean; interrupted: boolean };
 
 /** Streams Claude's reply, running tools until it is done. Returns this turn's messages (append-only). Exported for tests. */
 export async function streamReply(
@@ -428,6 +543,8 @@ export async function streamReply(
     effort = "medium",
     noThinking = false,
     searched = [],
+    maxTokens = 16000,
+    signal,
   }: {
     model?: string;
     effort?: "low" | "medium";
@@ -435,6 +552,9 @@ export async function streamReply(
     noThinking?: boolean;
     /** A knowledge search already run for this turn (searchedRound), continued from. */
     searched?: Anthropic.Beta.BetaMessageParam[];
+    maxTokens?: number;
+    /** Stops the reply where it is (the member interrupted); the text so far is kept. */
+    signal?: AbortSignal;
   } = {},
 ): Promise<ReplyResult> {
   const turn: Anthropic.Beta.BetaMessageParam[] = [userParam, ...searched];
@@ -443,30 +563,36 @@ export async function streamReply(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const lastRound = round === MAX_TOOL_ROUNDS - 1;
-    const stream = claude().beta.messages.stream({
-      model,
-      max_tokens: 16000,
-      betas: [FALLBACK_BETA],
-      fallbacks: "default",
-      output_config: { effort },
-      ...(noThinking ? { thinking: { type: "between_tools" as const } } : {}),
-      // The system prompt and tool list are identical for every member: cached.
-      system: [
-        { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
-        ...(persona ? [{ type: "text" as const, text: persona }] : []),
-      ],
-      tools: TOOLS,
-      // Also caches the conversation so far, so each round only pays for what's new.
-      cache_control: { type: "ephemeral" },
-      ...(lastRound ? { tool_choice: { type: "none" as const } } : {}),
-      messages: [...history, ...turn],
-    });
+    if (signal?.aborted) return { messages: turn.slice(1), refused: false, interrupted: true };
+    const stream = claude().beta.messages.stream(
+      {
+        model,
+        max_tokens: maxTokens,
+        betas: [FALLBACK_BETA],
+        fallbacks: "default",
+        output_config: { effort },
+        ...(noThinking ? { thinking: { type: "between_tools" as const } } : {}),
+        // The system prompt and tool list are identical for every member: cached.
+        system: [
+          { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+          ...(persona ? [{ type: "text" as const, text: persona }] : []),
+        ],
+        tools: TOOLS,
+        // Also caches the conversation so far, so each round only pays for what's new.
+        cache_control: { type: "ephemeral" },
+        ...(lastRound ? { tool_choice: { type: "none" as const } } : {}),
+        messages: [...history, ...turn],
+      },
+      signal ? { signal } : undefined,
+    );
 
     let roundStarted = false;
+    let roundText = "";
     stream.on("text", (delta) => {
       if (!roundStarted && wroteText) emitText("\n\n");
       roundStarted = true;
       wroteText = true;
+      roundText += delta;
       emitText(delta);
     });
 
@@ -475,6 +601,11 @@ export async function streamReply(
       message = await stream.finalMessage();
       jsonRetries = 0;
     } catch (error) {
+      if (signal?.aborted) {
+        // Interrupted: keep what was said (a cut-off tool call is never kept).
+        if (roundText.trim()) turn.push({ role: "assistant", content: [{ type: "text", text: roundText }] });
+        return { messages: turn.slice(1), refused: false, interrupted: true };
+      }
       // A tool input that isn't valid JSON (eager input streaming): re-issue the round, a couple of times at most.
       if (error instanceof Anthropic.APIError || jsonRetries++ >= 2 || roundStarted) throw error;
       round--;
@@ -488,7 +619,7 @@ export async function streamReply(
 
     if (message.stop_reason === "refusal") {
       // Never store a refused turn: the fallback reply replaces it.
-      return { messages: [], refused: true };
+      return { messages: [], refused: true, interrupted: false };
     }
 
     turn.push({ role: "assistant", content: message.content });
@@ -536,5 +667,5 @@ export async function streamReply(
   }
 
   // The member's message is stored separately; this turn is everything after it.
-  return { messages: turn.slice(1), refused: false };
+  return { messages: turn.slice(1), refused: false, interrupted: false };
 }

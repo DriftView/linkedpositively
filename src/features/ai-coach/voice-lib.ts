@@ -1,3 +1,5 @@
+import { END_OF_TURN_SILENCE_MS } from "./constants";
+
 /**
  * Pure helpers for the coach's voice (client-safe, unit-tested in voice-lib.test.ts):
  * cutting a streaming reply into speakable chunks, and turning speech timing
@@ -11,8 +13,8 @@
 /**
  * Collects streamed text and hands back whole sentences to speak, so the coach
  * starts talking after the first sentence instead of after the whole reply.
- * The first chunk is short (fast start: a long first sentence is cut at a
- * comma); later ones group sentences so a reply isn't split into many small
+ * The first chunk is short (fast start: a long first sentence is cut at its
+ * first comma); later ones group sentences so a reply isn't split into many small
  * voice requests.
  */
 export class SpeechChunker {
@@ -21,10 +23,10 @@ export class SpeechChunker {
 
   constructor(
     private readonly options: { firstMin: number; min: number; max: number; firstMax?: number } = {
-      firstMin: 20,
+      firstMin: 12,
       min: 90,
       max: 320,
-      firstMax: 90,
+      firstMax: 70,
     },
   ) {}
 
@@ -63,9 +65,10 @@ export class SpeechChunker {
       }
     }
     if (cut < 0 && this.buffer.length > max) {
-      // A very long sentence: break at a comma, else a space.
+      // A very long sentence: break at a comma (the first one, for the opening chunk), else a space.
       const window = this.buffer.slice(0, max);
-      const comma = window.lastIndexOf(", ");
+      const firstComma = window.indexOf(", ", min);
+      const comma = first && firstComma > 0 ? firstComma : window.lastIndexOf(", ");
       const space = window.lastIndexOf(" ");
       cut = comma > min ? comma + 1 : space > min ? space : max;
     }
@@ -93,12 +96,22 @@ export class TalkOverDetector {
   private score = 0;
   private elapsed = 0;
 
-  constructor(private readonly options = { warmupMs: 300, triggerMs: 250, margin: 1.5 }) {}
+  constructor(private readonly options = { warmupMs: 250, rewarmMs: 60, triggerMs: 180, margin: 1.5 }) {}
 
+  /** Forgets everything, the echo level included (a new call, a new room). */
   reset() {
     this.echo = 0;
     this.score = 0;
     this.elapsed = 0;
+  }
+
+  /**
+   * The coach starts speaking again: the echo level it learned still holds
+   * (same speakers, same room), so only a short warm-up before listening.
+   */
+  restart() {
+    this.score = 0;
+    this.elapsed = this.echo > 0 ? this.options.warmupMs - this.options.rewarmMs : 0;
   }
 
   /**
@@ -119,6 +132,29 @@ export class TalkOverDetector {
     this.score = loud ? this.score + ms : Math.max(0, this.score - ms / 2);
     return this.score >= this.options.triggerMs;
   }
+}
+
+// ---------------------------------------------------------------------------
+// End of the member's turn
+// ---------------------------------------------------------------------------
+
+/** Words that usually mean more is coming. */
+const TRAILING_WORDS =
+  /\b(and|but|or|so|because|cause|if|then|um+|uh+|er+|erm|like|the|a|an|to|of|with|my|i|that|which|when|where|is|was)$/i;
+
+/**
+ * How long a pause ends the member's turn in voice chat, from the words heard
+ * so far (live transcription): quick when they sound finished (a full stop or
+ * a question mark), longer after "and", "um" or a trailing comma, else the
+ * usual pause. A turn cut short is no disaster: talking again interrupts the
+ * coach and continues the turn.
+ */
+export function endOfTurnSilenceMs(partial: string) {
+  const text = partial.trim();
+  if (!text) return END_OF_TURN_SILENCE_MS;
+  if (/[,;:\-–—]$/.test(text) || TRAILING_WORDS.test(text.replace(/[.!?…]+$/, ""))) return 900;
+  if (/[.!?…]["')\]]*$/.test(text)) return 350;
+  return END_OF_TURN_SILENCE_MS;
 }
 
 // ---------------------------------------------------------------------------

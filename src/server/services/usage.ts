@@ -36,6 +36,7 @@ export const USAGE_TYPES = [
   "ai_fallback",
   "ai_coach_designed",
   "ai_video_session",
+  "ai_greeting",
 ] as const;
 export type UsageType = (typeof USAGE_TYPES)[number];
 
