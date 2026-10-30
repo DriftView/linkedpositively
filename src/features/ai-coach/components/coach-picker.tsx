@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import type { AiCoachId } from "@/server/db/schema/ai";
 import { saveCoachDesignAction } from "../actions";
 import {
   COACHES,
@@ -80,6 +81,7 @@ export function CoachPicker({
   onSaved,
   voiceEnabled,
   realistic,
+  coachIds,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -88,8 +90,11 @@ export function CoachPicker({
   voiceEnabled: boolean;
   /** The video coach is available: show each coach's photo. */
   realistic: boolean;
+  /** The coaches that can be chosen now (a new coach waits for its migration); the current one always shows. */
+  coachIds: AiCoachId[];
 }) {
   const [draft, setDraft] = useState(design);
+  const options = COACHES.filter((option) => coachIds.includes(option.id) || option.id === design.coachId);
   const [saving, setSaving] = useState(false);
   const coach = resolveCoach(draft);
   const voice = useCoachVoice({ pitch: coachVoice(coach.voice).pitch, gender: voiceGenderFor(coach.pronouns) });
@@ -138,7 +143,7 @@ export function CoachPicker({
           <fieldset>
             <legend className="sr-only">Coach</legend>
             <ul role="radiogroup" aria-label="Coach" className="grid grid-cols-2 gap-3">
-              {COACHES.map((option) => {
+              {options.map((option) => {
                 const selected = draft.coachId === option.id;
                 const id = `preview-${option.id}`;
                 return (

@@ -155,10 +155,37 @@ export const COACHES: Coach[] = [
       outfitColor: "green",
     },
   },
+  {
+    id: "olivia",
+    name: "Olivia",
+    pronouns: "she",
+    voice: "upbeat",
+    photo: "/coaches/olivia.webp",
+    photoFocus: "50% 32%",
+    anamAvatarId: "cf437b5e-5bcb-481a-937f-b4f16560a152",
+    appearance: {
+      skin: "t2",
+      hair: "long",
+      hairColor: "brown",
+      eyeColor: "hazel",
+      facialHair: "none",
+      glasses: "none",
+      earrings: "none",
+      outfit: "collar",
+      outfitColor: "charcoal",
+    },
+  },
 ];
 
+/** The coach members get until they choose one (also the database default for ai_preferences.look). */
+export const DEFAULT_COACH_ID: AiCoachId = "olivia";
+
 export function findCoach(id: string | null | undefined) {
-  return COACHES.find((coach) => coach.id === id) ?? COACHES[0];
+  return (
+    COACHES.find((coach) => coach.id === id) ??
+    COACHES.find((coach) => coach.id === DEFAULT_COACH_ID) ??
+    COACHES[0]
+  );
 }
 
 /** What the member chose. */
@@ -174,7 +201,7 @@ export type ResolvedCoach = Coach & { tone: AiCoachTone; replyLength: AiReplyLen
 type Option<T extends string> = { id: T; label: string };
 
 export const DEFAULT_DESIGN: CoachDesign = {
-  coachId: COACHES[0].id,
+  coachId: DEFAULT_COACH_ID,
   tone: "warm",
   replyLength: "balanced",
 };

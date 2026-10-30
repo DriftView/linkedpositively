@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, CircleAlert, CircleCheck, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { primeCoachAudio } from "@/features/ai-coach/audio-unlock";
 import { announceAuthChange } from "@/lib/auth-client";
 import type { Portal } from "@/lib/portal";
 import { cn } from "@/lib/utils";
@@ -18,9 +20,12 @@ export function LoginForm({ next, passwordWasReset }: { next: string; passwordWa
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedOnce, setFailedOnce] = useState(false);
+  const router = useRouter();
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    // Inside the click: lets the AI Coach greet the member out loud on the page they land on.
+    primeCoachAudio();
     setPending(true);
     setError(null);
 
@@ -30,7 +35,11 @@ export function LoginForm({ next, passwordWasReset }: { next: string; passwordWa
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ identifier: identifier.trim(), password, next }),
     }).catch(() => null);
-    const result = (await response?.json().catch(() => null)) as { portal?: Portal; destination?: string; message?: string | null } | null;
+    const result = (await response?.json().catch(() => null)) as {
+      portal?: Portal;
+      destination?: string;
+      message?: string | null;
+    } | null;
 
     if (!response?.ok || !result?.destination || !result.portal) {
       setPending(false);
@@ -46,8 +55,13 @@ export function LoginForm({ next, passwordWasReset }: { next: string; passwordWa
       return;
     }
     announceAuthChange(result.portal);
-    // A full load, so the new session's pages aren't mixed with cached ones.
-    window.location.assign(result.destination);
+    // Opened in place, not with a full load, so the sound this click allowed carries over (the coach's
+    // greeting). The new session's pages are rendered fresh: nothing from this page is cached for them.
+    try {
+      router.replace(result.destination);
+    } catch {
+      window.location.assign(result.destination);
+    }
   }
 
   return (
@@ -112,12 +126,20 @@ export function LoginForm({ next, passwordWasReset }: { next: string; passwordWa
       </div>
 
       {error ? (
-        <p role="alert" className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3.5 py-3 text-sm text-destructive">
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3.5 py-3 text-sm text-destructive"
+        >
           <CircleAlert className="mt-0.5 size-4 shrink-0" /> {error}
         </p>
       ) : null}
 
-      <Button type="submit" size="lg" className="h-11 w-full rounded-xl text-[0.95rem]" disabled={pending || !identifier || !password}>
+      <Button
+        type="submit"
+        size="lg"
+        className="h-11 w-full rounded-xl text-[0.95rem]"
+        disabled={pending || !identifier || !password}
+      >
         {pending ? <Spinner /> : null}
         {pending ? "Logging in…" : "Log in"}
         {pending ? null : <ArrowRight data-icon="inline-end" />}

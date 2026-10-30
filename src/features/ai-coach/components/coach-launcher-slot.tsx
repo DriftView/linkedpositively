@@ -20,6 +20,10 @@ export async function CoachLauncherSlot({ viewer, basePath }: { viewer: Viewer; 
       basePath={basePath}
       coachId={preferences.design.coachId}
       realistic={settings.aiVoiceEnabled && settings.aiVideoEnabled && voiceConfigured() && videoConfigured()}
+      firstName={preferences.personalize ? viewer.name.split(" ")[0] || null : null}
+      voiceEnabled={settings.aiVoiceEnabled}
+      serverVoice={voiceConfigured()}
+      impersonating={Boolean(viewer.impersonatedBy)}
     />
   );
 }

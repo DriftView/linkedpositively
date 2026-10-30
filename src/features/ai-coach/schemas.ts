@@ -9,6 +9,7 @@ import {
   AI_TOPICS,
 } from "@/server/db/schema/ai";
 import { BACKCHANNELS } from "./coach-design";
+import { GREETINGS } from "./greeting";
 import { MAX_MESSAGE_LENGTH } from "./constants";
 
 /** Body of POST /api/ai/chat. */
@@ -30,6 +31,8 @@ export const chatRequestSchema = z.object({
   handsFree: z.boolean().optional(),
   /** Stream the reply as speech too (sentence by sentence, see AiStreamEvent "speech"). */
   speak: z.boolean().optional(),
+  /** The member talked over the coach's last spoken reply: the part of it they heard. */
+  interrupted: z.string().trim().max(2000).nullable().optional(),
 });
 
 export const conversationIdSchema = z.object({ conversationId: uuidSchema });
@@ -51,7 +54,7 @@ export const coachDesignSchema = z.object({
   replyLength: z.enum(AI_REPLY_LENGTHS),
 });
 
-export const AI_CLIENT_EVENTS = ["handoff_sent", "voice_output"] as const;
+export const AI_CLIENT_EVENTS = ["handoff_sent", "voice_output", "greeting_shown", "greeting_heard"] as const;
 export const clientEventSchema = z.object({ event: z.enum(AI_CLIENT_EVENTS) });
 
 /** Body of POST /api/ai/speech: a reply of the member's to read aloud, or a voice to preview in the coach picker. */
@@ -59,7 +62,22 @@ export const speechRequestSchema = z.union([
   z.object({ messageId: uuidSchema }),
   z.object({ preview: z.enum(AI_COACH_VOICES) }),
   /** BACKCHANNELS[backchannel] in the member's coach voice. */
-  z.object({ backchannel: z.number().int().min(0).max(BACKCHANNELS.length - 1) }),
+  z.object({
+    backchannel: z
+      .number()
+      .int()
+      .min(0)
+      .max(BACKCHANNELS.length - 1),
+  }),
+  /** The floating coach's greeting (greeting.ts): GREETINGS[greeting], fitted to the member's local hour. */
+  z.object({
+    greeting: z
+      .number()
+      .int()
+      .min(0)
+      .max(GREETINGS.length - 1),
+    hour: z.number().int().min(0).max(23),
+  }),
 ]);
 
 export const alertUpdateSchema = z.object({

@@ -10,6 +10,8 @@ type Scripted = {
   text?: string;
   content: Anthropic.Beta.BetaContentBlock[];
   stop_reason: Anthropic.Beta.BetaMessage["stop_reason"];
+  /** The member talks over the coach after this round's text: aborts it mid-stream. */
+  abort?: AbortController;
 };
 const script: Scripted[] = [];
 const requests: Anthropic.Beta.MessageCreateParams[] = [];
@@ -31,6 +33,10 @@ vi.mock("./claude", () => ({
             on: (_event: "text", listener: (delta: string) => void) => listeners.push(listener),
             finalMessage: async () => {
               if (next.text) for (const listener of listeners) listener(next.text);
+              if (next.abort) {
+                next.abort.abort();
+                throw new Error("Request was aborted.");
+              }
               return {
                 content: next.content,
                 stop_reason: next.stop_reason,
@@ -178,7 +184,7 @@ describe("streamReply", () => {
   it("never stores a refused turn", async () => {
     script.push({ content: [], stop_reason: "refusal" });
     const result = await streamReply(history, user, context(), () => undefined, { input: 0, output: 0 });
-    expect(result).toEqual({ messages: [], refused: true });
+    expect(result).toEqual({ messages: [], refused: true, interrupted: false });
   });
 
   it("refuses to run a tool call cut off by max_tokens", async () => {
@@ -197,5 +203,32 @@ describe("streamReply", () => {
     expect(requests.at(-1)?.tool_choice).toEqual({ type: "none" });
     expect(requests.slice(0, -1).every((request) => request.tool_choice === undefined)).toBe(true);
     expect(result.messages.at(-1)?.role).toBe("assistant");
+  });
+
+  it("keeps what was said when the member interrupts, and never a cut-off tool call", async () => {
+    const abort = new AbortController();
+    script.push({ content: [toolUse("t1", "search_knowledge")], stop_reason: "tool_use" });
+    script.push({ text: "PEP is medicine you start", content: [], stop_reason: "end_turn", abort });
+    const result = await streamReply(history, user, context(), () => undefined, { input: 0, output: 0 }, undefined, {
+      signal: abort.signal,
+    });
+    expect(result.interrupted).toBe(true);
+    expect(result.messages.at(-1)).toEqual({
+      role: "assistant",
+      content: [{ type: "text", text: "PEP is medicine you start" }],
+    });
+    // The finished tool round stays, with its result.
+    expect(result.messages[0]?.role).toBe("assistant");
+    expect(result.messages[1]?.role).toBe("user");
+  });
+
+  it("saves nothing extra when interrupted before any words", async () => {
+    const abort = new AbortController();
+    abort.abort();
+    const result = await streamReply(history, user, context(), () => undefined, { input: 0, output: 0 }, undefined, {
+      signal: abort.signal,
+    });
+    expect(result).toEqual({ messages: [], refused: false, interrupted: true });
+    expect(requests).toHaveLength(0);
   });
 });

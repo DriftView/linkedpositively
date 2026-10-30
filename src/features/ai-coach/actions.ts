@@ -5,6 +5,7 @@ import { permissionAction, UserFacingError } from "@/server/actions/safe-action"
 import { db } from "@/server/db/client";
 import { aiConversations, aiMessages, aiPreferences } from "@/server/db/schema";
 import { trackUsage } from "@/server/services/usage";
+import { availableCoachIds } from "./coach-availability";
 import {
   clientEventSchema,
   coachDesignSchema,
@@ -62,6 +63,8 @@ export const savePreferencesAction = permissionAction("ai.chat")
 export const saveCoachDesignAction = permissionAction("ai.chat")
   .inputSchema(coachDesignSchema)
   .action(async ({ parsedInput: design, ctx: { viewer } }) => {
+    if (!(await availableCoachIds()).includes(design.coachId))
+      throw new UserFacingError("That coach isn't available yet. Please choose another.");
     const values = { look: design.coachId, tone: design.tone, replyLength: design.replyLength };
     await db
       .insert(aiPreferences)
@@ -79,6 +82,8 @@ export const saveCoachDesignAction = permissionAction("ai.chat")
 export const recordClientEventAction = permissionAction("ai.chat")
   .inputSchema(clientEventSchema)
   .action(async ({ parsedInput: { event }, ctx: { viewer } }) => {
-    await trackUsage(viewer.id, event === "handoff_sent" ? "ai_handoff_sent" : "ai_voice_output");
+    if (event === "greeting_shown" || event === "greeting_heard")
+      await trackUsage(viewer.id, "ai_greeting", { heard: event === "greeting_heard" });
+    else await trackUsage(viewer.id, event === "handoff_sent" ? "ai_handoff_sent" : "ai_voice_output");
     return { ok: true };
   });

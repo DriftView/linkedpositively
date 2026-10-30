@@ -3,6 +3,7 @@ import { getSettings } from "@/features/admin/settings";
 import { type Viewer } from "@/server/auth/session";
 import { videoConfigured } from "./avatar";
 import { aiConfigured } from "./claude";
+import { availableCoachIds } from "./coach-availability";
 import { getConversationMessages, getPreferences, listConversations } from "./queries";
 import { voiceConfigured } from "./speech";
 import type { AiCoachData } from "./types";
@@ -19,7 +20,11 @@ export async function loadCoach(viewer: Viewer, conversation: string | "latest" 
   const settings = await getSettings();
   if (!settings.aiCoachEnabled) return null;
 
-  const [preferences, conversations] = await Promise.all([getPreferences(viewer.id), listConversations(viewer.id)]);
+  const [preferences, conversations, coachIds] = await Promise.all([
+    getPreferences(viewer.id),
+    listConversations(viewer.id),
+    availableCoachIds(),
+  ]);
   let requested = conversation;
   if (requested === "latest") {
     const latest = conversations[0];
@@ -41,5 +46,6 @@ export async function loadCoach(viewer: Viewer, conversation: string | "latest" 
     aiAvailable: aiConfigured(),
     timezone: viewer.timezone,
     firstName: viewer.name.split(" ")[0] ?? "",
+    coachIds,
   };
 }

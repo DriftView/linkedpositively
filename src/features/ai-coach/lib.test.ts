@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anyWordQuery, clip, parseCoachMarkdown } from "./lib";
+import { anyWordQuery, clip, isSmallTalk, JsonLineReader, parseCoachMarkdown } from "./lib";
 
 describe("anyWordQuery", () => {
   it("joins unique words with or", () => {
@@ -58,5 +58,38 @@ describe("parseCoachMarkdown", () => {
   it("never produces HTML", () => {
     const blocks = parseCoachMarkdown("<script>alert(1)</script>");
     expect(blocks).toEqual([{ type: "paragraph", spans: [{ text: "<script>alert(1)</script>", bold: false }] }]);
+  });
+});
+
+describe("isSmallTalk", () => {
+  it("spots greetings, thanks and short acknowledgements", () => {
+    for (const text of ["hi", "Hey there!", "thanks so much", "okay", "Ok cool.", "good morning", "yes", "bye"])
+      expect(isSmallTalk(text), text).toBe(true);
+  });
+
+  it("never treats a question or anything with substance as small talk", () => {
+    for (const text of [
+      "where can I get PrEP?",
+      "hi, I think I was exposed to HIV",
+      "thanks, what about PEP",
+      "I want to hurt myself",
+      "ok so how often should I test",
+    ])
+      expect(isSmallTalk(text), text).toBe(false);
+  });
+});
+
+describe("JsonLineReader", () => {
+  it("parses objects split across reads and skips blank lines", () => {
+    const reader = new JsonLineReader();
+    expect(reader.push('{"a":1}\n{"b"')).toEqual([{ a: 1 }]);
+    expect(reader.push(":2}\n\n")).toEqual([{ b: 2 }]);
+    expect(reader.push('{"c":3}')).toEqual([]);
+    expect(reader.flush()).toEqual([{ c: 3 }]);
+  });
+
+  it("skips lines that aren't JSON", () => {
+    const reader = new JsonLineReader();
+    expect(reader.push('nope\n{"ok":true}\n')).toEqual([{ ok: true }]);
   });
 });

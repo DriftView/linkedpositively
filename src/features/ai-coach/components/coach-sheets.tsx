@@ -16,6 +16,7 @@ import { resolveCoach } from "../coach-design";
 import { CRISIS_LINES } from "../constants";
 import type { AiPreferencesDTO, ConversationSummaryDTO } from "../types";
 import { CoachPortrait } from "./coach-portrait";
+import { greetingEnabled, setGreetingEnabled } from "./greeting-storage";
 
 export function HistorySheet({
   open,
@@ -154,6 +155,8 @@ export function SettingsSheet({
   realistic: boolean;
 }) {
   const coach = resolveCoach(preferences.design);
+  // On this device only (greeting-storage.ts); the sheet renders in the browser.
+  const [greets, setGreets] = useState(greetingEnabled);
 
   async function update(patch: Partial<Pick<AiPreferencesDTO, "personalize" | "autoSpeak">>) {
     const next = { ...preferences, ...patch };
@@ -214,6 +217,24 @@ export function SettingsSheet({
               />
             </div>
           ) : null}
+
+          <div className="flex items-start justify-between gap-4">
+            <label htmlFor="ai-greeting" className="text-sm">
+              <span className="font-semibold">Greet me when I open the app</span>
+              <span className="mt-0.5 block text-muted-foreground">
+                {coach.name} says hello once a day{voiceEnabled ? ", out loud after your first tap" : ""}. On this
+                device.
+              </span>
+            </label>
+            <Switch
+              id="ai-greeting"
+              checked={greets}
+              onCheckedChange={(next) => {
+                setGreets(next);
+                setGreetingEnabled(next);
+              }}
+            />
+          </div>
         </div>
       </SheetContent>
     </Sheet>

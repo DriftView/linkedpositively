@@ -76,7 +76,15 @@ function highestCrisis(messages: ChatMessageDTO[]) {
   return level;
 }
 
-type SendOptions = { viaVoice?: boolean; handsFree?: boolean };
+type SendOptions = {
+  viaVoice?: boolean;
+  handsFree?: boolean;
+  /** When the member's turn ended and their words were ready (performance.now), for the voice timing log. */
+  turn?: { endedAt: number; transcribedAt: number };
+};
+
+/** Development: one line per spoken turn with where the time went (ms after the member stopped talking). */
+const LOG_VOICE_TIMING = process.env.NODE_ENV === "development";
 
 /**
  * The AI Coach conversation: the animated coach, the messages with their
@@ -111,16 +119,32 @@ export function AiCoach(props: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const sendingRef = useRef(false);
   const queuedRef = useRef<{ text: string; options: SendOptions } | null>(null);
+  /** The reply streaming in now, so the member can cut it off (barge-in). */
+  const abortRef = useRef<AbortController | null>(null);
+  /** What the member heard of a reply they interrupted: sent with their next message (if soon). */
+  const interruptedRef = useRef<{ heard: string; at: number } | null>(null);
+  /** The reply the latest message got, while it's the one being spoken (an interruption is about it). */
+  const liveReplyRef = useRef<string | null>(null);
+  /** This turn's voice timing (development log). */
+  const timingRef = useRef<{ t0: number; marks: Record<string, number> } | null>(null);
   const resumeListeningRef = useRef<() => void>(() => undefined);
   /** The backchannels in the coach's voice (loaded when voice chat starts), taken in turn. */
   const backchannelsRef = useRef<{ voice: string; clips: SpeechChunkDTO[]; next: number } | null>(null);
   const coach = resolveCoach(preferences.design);
   const onVoiceIdle = useCallback(() => resumeListeningRef.current(), []);
+  const onSpeechStart = useCallback(() => {
+    const timing = timingRef.current;
+    if (!timing) return;
+    timingRef.current = null;
+    timing.marks.heard = Math.round(performance.now() - timing.t0);
+    if (LOG_VOICE_TIMING) console.info("[voice timing] ms after the member stopped talking", timing.marks);
+  }, []);
   const video = useVideoCoach();
   const voice = useCoachVoice({
     pitch: coachVoice(coach.voice).pitch,
     gender: voiceGenderFor(coach.pronouns),
     onIdle: onVoiceIdle,
+    onSpeechStart,
     video: video.sink,
   });
   const crisis = liveCrisis ?? highestCrisis(messages);
@@ -136,8 +160,11 @@ export function AiCoach(props: Props) {
       const text = raw.trim();
       if (!text) return;
       if (sendingRef.current) {
-        // Talked over the coach while its reply was still arriving: send once that turn is saved.
-        if (options.handsFree) queuedRef.current = { text, options };
+        // Spoke while the last reply was still finishing: send once it's done (several in a row are joined).
+        if (options.handsFree || options.viaVoice) {
+          const queued = queuedRef.current;
+          queuedRef.current = queued ? { text: `${queued.text} ${text}`, options: queued.options } : { text, options };
+        }
         return;
       }
       if (text.length > MAX_MESSAGE_LENGTH) {
@@ -151,6 +178,24 @@ export function AiCoach(props: Props) {
       // ElevenLabs speaks on the server; otherwise the browser reads each sentence as it arrives.
       const chunker = speak && !props.serverVoice ? new SpeechChunker() : null;
       let spokenChunks = 0;
+      // Only when they speak again soon after cutting the coach off; later it's a new topic.
+      const cutOff = interruptedRef.current;
+      interruptedRef.current = null;
+      const interrupted = cutOff && Date.now() - cutOff.at < 2 * 60_000 ? cutOff.heard : null;
+      liveReplyRef.current = PENDING;
+      const abort = new AbortController();
+      abortRef.current = abort;
+      if (viaVoice) {
+        const t0 = options.turn?.endedAt ?? performance.now();
+        const marks: Record<string, number> = {};
+        if (options.turn) marks.transcript = Math.round(options.turn.transcribedAt - t0);
+        marks.sent = Math.round(performance.now() - t0);
+        timingRef.current = { t0, marks };
+      } else timingRef.current = null;
+      const mark = (step: string) => {
+        const timing = timingRef.current;
+        if (timing) timing.marks[step] ??= Math.round(performance.now() - timing.t0);
+      };
       if (speak) voice.begin(PENDING);
       else voice.stop();
       // Voice chat: a short "Mm-hm." in the coach's voice at once, while the reply is on its way.
@@ -201,7 +246,9 @@ export function AiCoach(props: Props) {
             viaVoice,
             handsFree: Boolean(options.handsFree),
             speak: speak && props.serverVoice,
+            interrupted,
           }),
+          signal: abort.signal,
         });
         if (!response.ok || !response.body) {
           const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -213,6 +260,7 @@ export function AiCoach(props: Props) {
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
+          mark("firstByte");
           buffer += decoder.decode(value, { stream: true });
           let newline = buffer.indexOf("\n");
           while (newline >= 0) {
@@ -239,13 +287,18 @@ export function AiCoach(props: Props) {
                 ]);
                 break;
               case "text":
+                mark("firstText");
                 setStatus(null);
                 patchPending((message) => ({ ...message, text: message.text + event.delta }));
                 for (const chunk of chunker?.push(event.delta) ?? []) voice.enqueue({ text: speakableText(chunk) });
                 break;
               case "speech":
+                mark("firstAudioArrived");
                 spokenChunks++;
                 voice.enqueue(event);
+                break;
+              case "timing":
+                if (LOG_VOICE_TIMING) console.info("[voice timing] server, ms after the request arrived", event.ms);
                 break;
               case "spoken":
                 // All the audio is here: hands-free can listen again once it has played, without waiting for `done`.
@@ -272,6 +325,7 @@ export function AiCoach(props: Props) {
                   if (!chunker && spokenChunks === 0) voice.enqueue({ text: speakableText(event.message.text) });
                   voice.rename(PENDING, event.message.id);
                 }
+                if (liveReplyRef.current === PENDING) liveReplyRef.current = event.message.id;
                 break;
               case "error":
                 throw new Error(event.message);
@@ -283,14 +337,28 @@ export function AiCoach(props: Props) {
             "The connection dropped. Your message was saved; open the conversation again to see the reply.",
           );
       } catch (error) {
-        setMessages((current) => current.filter((message) => message.id !== PENDING));
-        toast.error(error instanceof Error ? error.message : "The coach couldn't answer. Please try again.");
+        if (abort.signal.aborted) {
+          // The member talked over the coach: keep what it had said so far (it's saved), marked as cut off.
+          setMessages((current) =>
+            current.flatMap((message) =>
+              message.id !== PENDING
+                ? [message]
+                : message.text.trim()
+                  ? [{ ...message, id: `interrupted-${now}`, text: `${message.text.trimEnd()} …` }]
+                  : [],
+            ),
+          );
+        } else {
+          setMessages((current) => current.filter((message) => message.id !== PENDING));
+          toast.error(error instanceof Error ? error.message : "The coach couldn't answer. Please try again.");
+        }
       } finally {
+        if (abortRef.current === abort) abortRef.current = null;
         sendingRef.current = false;
         setSending(false);
         setStatus(null);
         // Goes idle once the queued speech has played (or now, if there was none); hands-free then listens again.
-        if (speak) voice.end();
+        if (speak && !abort.signal.aborted) voice.end();
         const queued = queuedRef.current;
         queuedRef.current = null;
         if (queued) void sendRef.current(queued.text, queued.options);
@@ -313,11 +381,34 @@ export function AiCoach(props: Props) {
     sendRef.current = send;
   }, [send]);
 
+  /**
+   * The member cut the coach off (talked over it, tapped stop or the mic):
+   * silence it at once, cancel the reply if it's still arriving (the server
+   * saves what was said), and note what they heard for their next message.
+   */
+  const interruptReply = useCallback(() => {
+    const heard = voice.heard();
+    // Cutting off the latest reply (not a replay of an older one) is what the coach should hear about.
+    const latest = voice.speakingId !== null && voice.speakingId === liveReplyRef.current;
+    const speaking = voice.stop();
+    const streaming = abortRef.current;
+    if (streaming) {
+      streaming.abort();
+      abortRef.current = null;
+    }
+    if (streaming || (speaking && latest)) interruptedRef.current = { heard: heard ?? "", at: Date.now() };
+    liveReplyRef.current = null;
+  }, [voice]);
+
   const onVoiceText = useCallback((text: string) => void sendRef.current(text, { viaVoice: true }), []);
   const onVoiceError = useCallback((message: string) => toast.error(message), []);
   const mic = useVoiceInput({ serverTranscription: props.serverVoice, onText: onVoiceText, onError: onVoiceError });
 
-  const onUtterance = useCallback((text: string) => void sendRef.current(text, { handsFree: true }), []);
+  const onUtterance = useCallback(
+    (text: string, turn?: { endedAt: number; transcribedAt: number }) =>
+      void sendRef.current(text, { handsFree: true, turn }),
+    [],
+  );
   const onHandsFreeTimeout = useCallback(
     () => toast("Voice chat ended after a quiet spell. Tap the voice chat button to talk again."),
     [],
@@ -325,7 +416,7 @@ export function AiCoach(props: Props) {
   const handsFree = useHandsFree({
     serverTranscription: props.serverVoice,
     onUtterance,
-    onBargeIn: voice.stop,
+    onBargeIn: interruptReply,
     onError: onVoiceError,
     onTimeout: onHandsFreeTimeout,
   });
@@ -334,10 +425,13 @@ export function AiCoach(props: Props) {
     resumeListeningRef.current = resumeHandsFree;
   }, [resumeHandsFree]);
   useEffect(() => setCoachSpeaking(Boolean(voice.speakingId)), [setCoachSpeaking, voice.speakingId]);
-  // Outside voice chat, talking over the coach stops it too (voice chat handles that itself).
+  // Outside voice chat, talking over the coach stops it too (voice chat handles that itself). The mic
+  // warms up as soon as a reply is on its way to be heard, so it's ready when the coach starts.
   useTalkOver({
-    active: props.voiceEnabled && !handsFree.active && mic.state === "idle" && Boolean(voice.speakingId),
-    onTalk: voice.stop,
+    armed:
+      props.voiceEnabled && !handsFree.active && mic.state === "idle" && Boolean(voice.loadingId || voice.speakingId),
+    active: Boolean(voice.speakingId),
+    onTalk: interruptReply,
   });
 
   /** Fetches the backchannels in the coach's current voice (once per voice; none if ElevenLabs is unavailable). */
@@ -373,7 +467,9 @@ export function AiCoach(props: Props) {
 
   function endHandsFree() {
     handsFree.stop();
-    voice.stop();
+    interruptReply();
+    interruptedRef.current = null;
+    queuedRef.current = null;
     video.stop();
   }
 
@@ -696,7 +792,7 @@ export function AiCoach(props: Props) {
                     )}
                   </div>
                   <ReplyCards cards={message.cards} />
-                  {message.id !== PENDING && message.text ? (
+                  {message.id !== PENDING && !message.id.startsWith("interrupted-") && message.text ? (
                     <div className="flex items-center gap-0.5 text-muted-foreground">
                       {props.voiceEnabled ? (
                         <Button
@@ -705,7 +801,7 @@ export function AiCoach(props: Props) {
                           className="size-9"
                           aria-label={voice.speakingId === message.id ? "Stop reading aloud" : "Read aloud"}
                           onClick={() => {
-                            if (voice.speakingId === message.id) voice.stop();
+                            if (voice.speakingId === message.id) interruptReply();
                             else {
                               voice.unlock();
                               void voice.speak(message.id, message.text);
@@ -780,6 +876,19 @@ export function AiCoach(props: Props) {
               </button>
             </p>
           ) : null}
+          {voice.speakingId && !inCall ? (
+            <div className="mb-2 flex justify-center">
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-9 rounded-full px-4"
+                onClick={interruptReply}
+                aria-label={`Stop ${coach.name} talking`}
+              >
+                <Square aria-hidden /> Stop {coach.name} talking
+              </Button>
+            </div>
+          ) : null}
           <div className="flex items-end gap-1.5">
             <Button
               type="button"
@@ -822,10 +931,11 @@ export function AiCoach(props: Props) {
                 aria-label={mic.state === "recording" ? "Stop recording" : "Talk to your coach"}
                 onClick={() => {
                   if (mic.state === "recording") return mic.stop();
-                  voice.stop(); // the member is about to talk: the coach stops
+                  voice.unlock();
+                  interruptReply(); // the member is about to talk: the coach stops, mid-reply too
                   void mic.start();
                 }}
-                disabled={sending || mic.state === "transcribing"}
+                disabled={mic.state === "transcribing"}
               >
                 {mic.state === "transcribing" ? (
                   <Spinner />
@@ -884,7 +994,7 @@ export function AiCoach(props: Props) {
           crisis={crisis}
           onMute={handsFree.setMuted}
           onStopTalking={() => {
-            voice.stop();
+            interruptReply();
             handsFree.resume();
           }}
           onEnd={endHandsFree}
@@ -921,6 +1031,7 @@ export function AiCoach(props: Props) {
         }}
         voiceEnabled={props.voiceEnabled}
         realistic={props.videoAvailable}
+        coachIds={props.coachIds}
       />
       <HelpSheet open={sheet === "help"} onOpenChange={(open) => setSheet(open ? "help" : null)} />
     </div>

@@ -45,7 +45,10 @@ export const CRISIS_LINES: CrisisLine[] = [
   },
 ];
 
-/** Hands-free talk: silence that ends the member's turn, and how long an unused open mic stays on. */
+/**
+ * Hands-free talk: silence that ends the member's turn when their words don't
+ * tell (see voice-lib.ts endOfTurnSilenceMs), and how long an unused open mic stays on.
+ */
 export const END_OF_TURN_SILENCE_MS = 550;
 export const HANDS_FREE_IDLE_MS = 90_000;
 

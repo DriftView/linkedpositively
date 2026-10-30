@@ -29,6 +29,57 @@ export function anyWordQuery(text: string, maxWords = 12) {
   return unique.length ? unique.join(" or ") : null;
 }
 
+/** Words that make up a greeting, a thank-you or a plain acknowledgement. */
+const SMALL_TALK_WORDS = new Set(
+  "hi hello hey heya hiya yo there good morning afternoon evening night thanks thank you so much very lot ok okay okey kay cool great nice awesome alright all right sure yes yeah yep yup no nope bye goodbye see later cheers mm hmm mhm got it sounds perfect".split(
+    " ",
+  ),
+);
+
+/**
+ * A greeting, a thank-you or a short acknowledgement ("hi", "thanks so much",
+ * "ok cool"): nothing to search approved content for, so a spoken reply
+ * needn't wait for the search. Anything else, including any question, is not.
+ */
+export function isSmallTalk(text: string) {
+  if (/[?]/.test(text)) return false;
+  const words =
+    text
+      .toLowerCase()
+      .replace(/['’]/g, "")
+      .match(/[\p{L}\p{N}]+/gu) ?? [];
+  return words.length > 0 && words.length <= 6 && words.every((word) => SMALL_TALK_WORDS.has(word));
+}
+
+/** Parses newline-delimited JSON as it streams in: whole lines only, skipping blank or broken ones. */
+export class JsonLineReader {
+  private buffer = "";
+
+  push(text: string): unknown[] {
+    this.buffer += text;
+    const lines = this.buffer.split("\n");
+    this.buffer = lines.pop() ?? "";
+    return lines.flatMap((line) => JsonLineReader.parse(line));
+  }
+
+  /** The last line, once the stream has ended. */
+  flush(): unknown[] {
+    const rest = this.buffer;
+    this.buffer = "";
+    return JsonLineReader.parse(rest);
+  }
+
+  private static parse(line: string): unknown[] {
+    const trimmed = line.trim();
+    if (!trimmed) return [];
+    try {
+      return [JSON.parse(trimmed)];
+    } catch {
+      return [];
+    }
+  }
+}
+
 /** Cuts `text` to about `max` characters on a sentence or word boundary. */
 export function clip(text: string, max: number) {
   const clean = text.replace(/\s+/g, " ").trim();
